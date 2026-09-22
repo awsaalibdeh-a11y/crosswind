@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>Crosswind — a flight simulator</title>
+  <meta name="description" content="Fly a light aircraft over an island: take off, navigate, and try to put it back down on the runway." />
+  <meta name="theme-color" content="#0b1016" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_v }}" />
+  <script type="importmap">
+    { "imports": { "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js" } }
+  </script>
+</head>
+<body>
+  <canvas id="view"></canvas>
+
+  <div class="loading" id="loading">
+    <div class="loading-inner">
+      <p class="brand">Crosswind</p>
+      <p class="loading-sub">Building the island…</p>
+    </div>
+  </div>
+
+  <!-- instruments -->
+  <div class="hud">
+    <!-- top: heading ribbon -->
+    <div class="ribbon-wrap">
+      <div class="ribbon" id="ribbon">
+        <span>N</span><span>03</span><span>06</span><span>E</span><span>12</span><span>15</span>
+        <span>S</span><span>21</span><span>24</span><span>W</span><span>30</span><span>33</span>
+        <span>N</span><span>03</span><span>06</span><span>E</span><span>12</span><span>15</span>
+        <span>S</span><span>21</span><span>24</span><span>W</span><span>30</span><span>33</span>
+      </div>
+      <div class="ribbon-mark"></div>
+      <div class="ribbon-read" id="i-hdg">000</div>
+    </div>
+
+    <!-- left: speed -->
+    <div class="tape left">
+      <span class="tape-label">Airspeed</span>
+      <span class="tape-val" id="i-spd">0</span>
+      <span class="tape-unit">kt</span>
+    </div>
+
+    <!-- right: altitude and vertical speed -->
+    <div class="tape right">
+      <span class="tape-label">Altitude</span>
+      <span class="tape-val" id="i-alt">0</span>
+      <span class="tape-unit">ft</span>
+      <span class="tape-sub"><em id="i-vsi">0</em> fpm</span>
+    </div>
+
+    <!-- centre: attitude -->
+    <div class="attitude">
+      <div class="horizon" id="horizon-roll">
+        <div class="horizon-inner" id="horizon-inner">
+          <div class="sky-half"></div>
+          <div class="ground-half"></div>
+          <div class="pitch-ladder">
+            <i style="--p:-30"></i><i style="--p:-20"></i><i style="--p:-10"></i>
+            <i style="--p:10"></i><i style="--p:20"></i><i style="--p:30"></i>
+          </div>
+        </div>
+      </div>
+      <div class="wings"></div>
+      <div class="stall" id="stall" hidden>STALL</div>
+    </div>
+
+    <!-- bottom left: engine and configuration -->
+    <div class="panel">
+      <div class="throttle-gauge"><div class="throttle-fill" id="i-thr-bar"></div></div>
+      <dl>
+        <div><dt>Throttle</dt><dd id="i-thr">0%</dd></div>
+        <div><dt>Flaps</dt><dd id="i-flaps">UP</dd></div>
+        <div><dt>Gear</dt><dd id="i-gear" class="ok">DOWN</dd></div>
+        <div><dt>Brakes</dt><dd id="i-brakes" class="warn">ON</dd></div>
+        <div><dt>G</dt><dd id="i-g">1.0</dd></div>
+      </dl>
+      <div class="fuel"><span id="i-fuel"></span></div>
+    </div>
+
+    <!-- bottom right: map -->
+    <div class="map">
+      <svg viewBox="0 0 128 128" aria-label="Island map">
+        <rect x="0" y="0" width="128" height="128" rx="8" fill="#0d2233" />
+        <circle cx="64" cy="64" r="52" fill="#1d3a2a" />
+        <circle cx="76" cy="50" r="24" fill="#3c4a3a" />
+        <rect x="62.2" y="57" width="3.6" height="14" fill="#cfd6dd" rx="1" />
+        <g id="map-plane" transform="translate(64 64)">
+          <path d="M0,-5 L3.4,4 L0,2 L-3.4,4 Z" fill="#ffd23f" stroke="#0b1016" stroke-width="0.6" />
+        </g>
+      </svg>
+      <span class="map-label">Isla Verde · RWY 36</span>
+    </div>
+
+    <div class="cam-tag" id="i-cam">Chase</div>
+    <p class="msg" id="msg" hidden></p>
+  </div>
+
+  <!-- touch controls -->
+  <div class="touch">
+    <div class="stick" id="stick"><div class="knob" id="knob"></div></div>
+    <div class="throttle" id="throttle"><span>THR</span></div>
+    <div class="touch-btns">
+      <button type="button" data-key="g">GEAR</button>
+      <button type="button" data-key="f">FLAP</button>
+      <button type="button" data-key="b">BRK</button>
+      <button type="button" data-key="c">VIEW</button>
+    </div>
+  </div>
+
+  <div class="card" id="crash" hidden>
+    <h2>Flight over</h2>
+    <p id="crash-why"></p>
+    <div class="card-btns">
+      <button type="button" data-key="r">Back to the runway</button>
+      <button type="button" data-key="t">Start airborne</button>
+    </div>
+  </div>
+
+  <div class="card help" id="help">
+    <h2>Crosswind</h2>
+    <p class="help-lead">A light single on an island strip. Full throttle, keep it straight, and ease back at about 55 knots.</p>
+    <dl>
+      <div><dt>W / S <em>or</em> ↑ ↓</dt><dd>Pitch</dd></div>
+      <div><dt>A / D <em>or</em> ← →</dt><dd>Roll</dd></div>
+      <div><dt>Q / E</dt><dd>Rudder · steering on the ground</dd></div>
+      <div><dt>Shift / Ctrl</dt><dd>Throttle · 1 2 3 for idle, half, full</dd></div>
+      <div><dt>G · F · B</dt><dd>Gear · flaps · brakes</dd></div>
+      <div><dt>C</dt><dd>Change view</dd></div>
+      <div><dt>R · T</dt><dd>Restart on the runway · in the air</dd></div>
+      <div><dt>H</dt><dd>Show or hide this</dd></div>
+    </dl>
+    <div class="card-btns"><button type="button" data-key="h">Fly</button></div>
+  </div>
+
+  <script type="module" src="{{ url_for('static', filename='sim.js') }}?v={{ asset_v }}"></script>
+</body>
+</html>
