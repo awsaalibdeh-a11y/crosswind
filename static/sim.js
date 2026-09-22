@@ -1179,6 +1179,297 @@ function buildAtlas() {
   return { group: g, surfaces: s };
 }
 
+/* ---------- 5. the warbird ---------- */
+function buildMustang() {
+  const g = new THREE.Group();
+  const s = {};
+  const olive = new THREE.MeshStandardMaterial({ color: 0xb9c4cc, roughness: 0.28, metalness: 0.78 });
+  const trim = new THREE.MeshStandardMaterial({ color: 0xe2b21c, roughness: 0.4, metalness: 0.3 });
+
+  const fuse = new THREE.Mesh(new THREE.CapsuleGeometry(0.78, 5.4, 8, 20), olive);
+  fuse.rotation.x = Math.PI / 2;
+  fuse.position.z = 0.6;
+  const nose = new THREE.Mesh(new THREE.CylinderGeometry(0.78, 0.66, 2.6, 18), olive);
+  nose.rotation.x = Math.PI / 2;
+  nose.position.z = -3.4;
+  const scoop = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.7, 3.0), olive);
+  scoop.position.set(0, -0.78, 1.4);
+  const spinner = new THREE.Mesh(new THREE.ConeGeometry(0.42, 1.2, 16), trim);
+  spinner.rotation.x = -Math.PI / 2;
+  spinner.position.z = -5.0;
+  g.add(fuse, nose, scoop, spinner);
+
+  const prop = new THREE.Group();
+  for (let i = 0; i < 4; i++) {
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.22, 3.4, 0.09), mat.dark);
+    blade.rotation.z = (i * Math.PI) / 2;
+    prop.add(blade);
+  }
+  prop.position.z = -4.8;
+  g.add(prop);
+  s.prop = prop;
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(1.75, 28), new THREE.MeshBasicMaterial({ color: 0xaab3bd, transparent: true, opacity: 0, side: THREE.DoubleSide }));
+  disc.position.z = -4.85;
+  g.add(disc);
+  s.disc = disc;
+
+  const canopy = new THREE.Mesh(new THREE.SphereGeometry(0.66, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2), mat.glass);
+  canopy.scale.set(1, 1.05, 2.4);
+  canopy.position.set(0, 0.6, -0.4);
+  g.add(canopy);
+
+  const wing = new THREE.Mesh(wingGeo({ span: 11.3, root: 2.9, tip: 1.2, thick: 0.34, sweep: 0.45, dihedral: 0.05 }), olive);
+  wing.position.set(0, -0.3, 0.2);
+  g.add(wing);
+  for (const side of [-1, 1]) {
+    const ail = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.15, 0.6), trim);
+    ail.position.set(side * 4.1, -0.26, 1.5);
+    g.add(ail);
+    s[side > 0 ? "aileronR" : "aileronL"] = ail;
+    const flap = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.15, 0.7), olive);
+    flap.position.set(side * 1.7, -0.3, 1.6);
+    g.add(flap);
+    s[side > 0 ? "flapR" : "flapL"] = flap;
+  }
+
+  const tail = new THREE.Mesh(wingGeo({ span: 4.6, root: 1.5, tip: 0.8, sweep: 0.3 }), olive);
+  tail.position.set(0, 0.1, 4.3);
+  const elev = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.13, 0.5), trim);
+  elev.position.set(0, 0.1, 4.95);
+  const fin = new THREE.Mesh(wingGeo({ span: 2.0, root: 2.2, tip: 1.0, thick: 0.16, sweep: 0.7 }), olive);
+  fin.rotation.z = Math.PI / 2;
+  fin.position.set(0, 1.05, 4.4);
+  const rud = new THREE.Mesh(new THREE.BoxGeometry(0.13, 1.8, 0.55), trim);
+  rud.position.set(0, 1.05, 5.15);
+  g.add(tail, elev, fin, rud);
+  s.elevator = elev;
+  s.rudder = rud;
+
+  s.gear = gearLegs(g, { main: [1.5, -1.35, -0.6], tail: [0, -0.9, 4.4], radius: 0.36 });
+  navLights(g, 5.75, -0.22, 0.2);
+  addShadows(g);
+  return { group: g, surfaces: s };
+}
+
+/* ---------- 6. the bush plane ---------- */
+function buildBush() {
+  const g = new THREE.Group();
+  const s = {};
+  const skin = new THREE.MeshStandardMaterial({ color: 0xf5c542, roughness: 0.55, metalness: 0.1 });
+  const trim = new THREE.MeshStandardMaterial({ color: 0x2f5d3f, roughness: 0.5 });
+
+  const fuse = new THREE.Mesh(new THREE.CapsuleGeometry(0.85, 4.6, 8, 18), skin);
+  fuse.rotation.x = Math.PI / 2;
+  fuse.position.z = 0.4;
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.85, 1.6, 18), skin);
+  nose.rotation.x = -Math.PI / 2;
+  nose.position.z = -3.5;
+  const spinner = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.7, 14), trim);
+  spinner.rotation.x = -Math.PI / 2;
+  spinner.position.z = -4.4;
+  g.add(fuse, nose, spinner);
+
+  const prop = new THREE.Group();
+  for (let i = 0; i < 3; i++) {
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.22, 3.2, 0.09), mat.dark);
+    blade.rotation.z = (i * Math.PI * 2) / 3;
+    prop.add(blade);
+  }
+  prop.position.z = -4.2;
+  g.add(prop);
+  s.prop = prop;
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(1.7, 26), new THREE.MeshBasicMaterial({ color: 0x9aa3ad, transparent: true, opacity: 0, side: THREE.DoubleSide }));
+  disc.position.z = -4.25;
+  g.add(disc);
+  s.disc = disc;
+
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.0, 2.6), mat.glass);
+  cabin.position.set(0, 0.55, -1.0);
+  g.add(cabin);
+
+  // a big, thick, high wing with full-span slats: this thing does not want to stop flying
+  const wing = new THREE.Mesh(wingGeo({ span: 13.2, root: 2.1, tip: 1.9, thick: 0.34, dihedral: 0.03 }), skin);
+  wing.position.set(0, 1.05, -0.6);
+  const slat = new THREE.Mesh(new THREE.BoxGeometry(12.6, 0.14, 0.3), trim);
+  slat.position.set(0, 1.16, -1.5);
+  g.add(wing, slat);
+  for (const side of [-1, 1]) {
+    const strut = new THREE.Mesh(new THREE.BoxGeometry(0.14, 1.7, 0.16), mat.steel);
+    strut.position.set(side * 2.4, 0.3, -0.4);
+    strut.rotation.z = side * 0.45;
+    g.add(strut);
+    const ail = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.15, 0.55), trim);
+    ail.position.set(side * 4.6, 1.03, 0.35);
+    g.add(ail);
+    s[side > 0 ? "aileronR" : "aileronL"] = ail;
+    const flap = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.15, 0.62), skin);
+    flap.position.set(side * 1.5, 1.03, 0.4);
+    g.add(flap);
+    s[side > 0 ? "flapR" : "flapL"] = flap;
+  }
+
+  const tail = new THREE.Mesh(wingGeo({ span: 4.6, root: 1.3, tip: 0.9 }), skin);
+  tail.position.set(0, 0.4, 3.4);
+  const elev = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.13, 0.5), trim);
+  elev.position.set(0, 0.4, 4.05);
+  const fin = new THREE.Mesh(wingGeo({ span: 1.9, root: 1.7, tip: 1.0, thick: 0.17, sweep: 0.4 }), skin);
+  fin.rotation.z = Math.PI / 2;
+  fin.position.set(0, 1.2, 3.5);
+  const rud = new THREE.Mesh(new THREE.BoxGeometry(0.14, 1.7, 0.55), trim);
+  rud.position.set(0, 1.2, 4.2);
+  g.add(tail, elev, fin, rud);
+  s.elevator = elev;
+  s.rudder = rud;
+
+  // tundra tyres — huge, soft, and the reason it can land on a hillside
+  s.gear = gearLegs(g, { main: [1.75, -1.6, -0.5], tail: [0, -1.0, 3.6], radius: 0.62 });
+  navLights(g, 6.7, 1.08, -0.6);
+  addShadows(g);
+  return { group: g, surfaces: s };
+}
+
+/* ---------- 7. the seaplane ---------- */
+function buildSeaplane() {
+  const g = new THREE.Group();
+  const s = {};
+  const skin = new THREE.MeshStandardMaterial({ color: 0xeef2f5, roughness: 0.42, metalness: 0.15 });
+  const trim = new THREE.MeshStandardMaterial({ color: 0x1d6fa5, roughness: 0.4 });
+
+  const fuse = new THREE.Mesh(new THREE.CapsuleGeometry(0.8, 4.8, 8, 18), skin);
+  fuse.rotation.x = Math.PI / 2;
+  fuse.position.z = 0.4;
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.7, 18), skin);
+  nose.rotation.x = -Math.PI / 2;
+  nose.position.z = -3.6;
+  const spinner = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.7, 14), trim);
+  spinner.rotation.x = -Math.PI / 2;
+  spinner.position.z = -4.5;
+  g.add(fuse, nose, spinner);
+
+  const prop = new THREE.Group();
+  for (let i = 0; i < 2; i++) {
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.18, 3.1, 0.08), mat.dark);
+    blade.rotation.z = (i * Math.PI) / 2;
+    prop.add(blade);
+  }
+  prop.position.z = -4.3;
+  g.add(prop);
+  s.prop = prop;
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(1.6, 26), new THREE.MeshBasicMaterial({ color: 0x9aa3ad, transparent: true, opacity: 0, side: THREE.DoubleSide }));
+  disc.position.z = -4.35;
+  g.add(disc);
+  s.disc = disc;
+
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.95, 2.4), mat.glass);
+  cabin.position.set(0, 0.5, -1.0);
+  g.add(cabin);
+
+  const wing = new THREE.Mesh(wingGeo({ span: 12.0, root: 1.9, tip: 1.4, dihedral: 0.04 }), skin);
+  wing.position.set(0, 1.0, -0.5);
+  g.add(wing);
+  for (const side of [-1, 1]) {
+    const ail = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.14, 0.5), trim);
+    ail.position.set(side * 4.2, 0.98, 0.35);
+    g.add(ail);
+    s[side > 0 ? "aileronR" : "aileronL"] = ail;
+    const flap = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.14, 0.55), skin);
+    flap.position.set(side * 1.4, 0.98, 0.4);
+    g.add(flap);
+    s[side > 0 ? "flapR" : "flapL"] = flap;
+
+    // the floats, and the struts holding them on
+    const float = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 4.4, 6, 12), trim);
+    float.rotation.x = Math.PI / 2;
+    float.position.set(side * 1.5, -1.65, -0.2);
+    const step = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.3, 0.5), trim);
+    step.position.set(side * 1.5, -1.85, 0.6);
+    g.add(float, step);
+    for (const zz of [-1.6, 1.4]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.5, 0.12), mat.steel);
+      post.position.set(side * 1.5, -0.9, zz);
+      g.add(post);
+    }
+  }
+
+  const tail = new THREE.Mesh(wingGeo({ span: 4.4, root: 1.2, tip: 0.85 }), skin);
+  tail.position.set(0, 0.35, 3.5);
+  const elev = new THREE.Mesh(new THREE.BoxGeometry(4.3, 0.13, 0.48), trim);
+  elev.position.set(0, 0.35, 4.1);
+  const fin = new THREE.Mesh(wingGeo({ span: 1.9, root: 1.7, tip: 0.95, thick: 0.16, sweep: 0.5 }), skin);
+  fin.rotation.z = Math.PI / 2;
+  fin.position.set(0, 1.2, 3.6);
+  const rud = new THREE.Mesh(new THREE.BoxGeometry(0.13, 1.7, 0.52), trim);
+  rud.position.set(0, 1.18, 4.3);
+  g.add(tail, elev, fin, rud);
+  s.elevator = elev;
+  s.rudder = rud;
+
+  s.gear = new THREE.Group();   // floats are permanent; there is no gear to raise
+  g.add(s.gear);
+  navLights(g, 6.1, 1.03, -0.5);
+  addShadows(g);
+  return { group: g, surfaces: s };
+}
+
+/* ---------- 8. the glider ---------- */
+function buildGlider() {
+  const g = new THREE.Group();
+  const s = {};
+  const skin = new THREE.MeshStandardMaterial({ color: 0xfbfcfd, roughness: 0.22, metalness: 0.05 });
+  const trim = new THREE.MeshStandardMaterial({ color: 0xd8262f, roughness: 0.35 });
+
+  const fuse = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 5.2, 8, 18), skin);
+  fuse.rotation.x = Math.PI / 2;
+  fuse.position.z = 0.8;
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.42, 16, 12), skin);
+  nose.scale.z = 2.2;
+  nose.position.z = -2.6;
+  const boom = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.1, 3.4, 10), skin);
+  boom.rotation.x = Math.PI / 2;
+  boom.position.z = 4.6;
+  g.add(fuse, nose, boom);
+
+  const canopy = new THREE.Mesh(new THREE.SphereGeometry(0.46, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2), mat.glass);
+  canopy.scale.set(1, 1.1, 3.4);
+  canopy.position.set(0, 0.25, -1.1);
+  g.add(canopy);
+
+  // the whole point: an enormous, slender, high-aspect wing
+  const wing = new THREE.Mesh(wingGeo({ span: 18.0, root: 1.05, tip: 0.48, thick: 0.16, dihedral: 0.04 }), skin);
+  wing.position.set(0, 0.34, 0.1);
+  g.add(wing);
+  for (const side of [-1, 1]) {
+    const ail = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.1, 0.3), trim);
+    ail.position.set(side * 6.4, 0.34, 0.5);
+    g.add(ail);
+    s[side > 0 ? "aileronR" : "aileronL"] = ail;
+    const tipSkid = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.24, 0.5), trim);
+    tipSkid.position.set(side * 8.9, 0.3, 0.1);
+    g.add(tipSkid);
+  }
+  s.flapL = s.flapR = null;
+
+  const tail = new THREE.Mesh(wingGeo({ span: 3.2, root: 0.8, tip: 0.5, thick: 0.12 }), skin);
+  tail.position.set(0, 1.5, 6.0);
+  const elev = new THREE.Mesh(new THREE.BoxGeometry(3.1, 0.09, 0.34), trim);
+  elev.position.set(0, 1.5, 6.4);
+  const fin = new THREE.Mesh(wingGeo({ span: 1.6, root: 1.3, tip: 0.7, thick: 0.12, sweep: 0.5 }), skin);
+  fin.rotation.z = Math.PI / 2;
+  fin.position.set(0, 0.95, 5.9);
+  const rud = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.4, 0.36), trim);
+  rud.position.set(0, 0.95, 6.5);
+  g.add(tail, elev, fin, rud);
+  s.elevator = elev;
+  s.rudder = rud;
+
+  s.prop = null;
+  s.disc = null;
+  s.gear = gearLegs(g, { main: [0.001, -0.75, 0.2], radius: 0.3 });   // one wheel under the belly
+  navLights(g, 9.0, 0.36, 0.1);
+  addShadows(g);
+  return { group: g, surfaces: s };
+}
+
 /* ---------- shared parts ---------- */
 
 function gearLegs(g, { main, nose, tail, radius = 0.34, pairs = 1 }) {
@@ -1234,7 +1525,7 @@ const AIRCRAFT = [
     build: buildSkylark,
     eye: [0, 0.62, 0.9], chase: 16, gearHeight: 1.55, propDriven: true,
     air: {
-      mass: 1000, wingArea: 16.2, maxThrust: 4400, vMax: 92,
+      mass: 1000, wingArea: 16.2, span: 11.4, maxThrust: 4400, vMax: 92,
       CL0: 0.30, CLa: 5.2, stallA: 0.29, CD0: 0.028, induced: 0.052,
       gearDrag: 0.012, flapLift: 0.45, flapDrag: 0.04,
       pitchPower: 2.4, rollPower: 4.4, yawPower: 1.2,
@@ -1250,7 +1541,7 @@ const AIRCRAFT = [
     build: buildSprint,
     eye: [0, 0.5, 0.2], chase: 15, gearHeight: 1.25, propDriven: true, taildragger: true,
     air: {
-      mass: 1080, wingArea: 13.4, maxThrust: 7200, vMax: 120,
+      mass: 1080, wingArea: 13.4, span: 8.4, maxThrust: 7200, vMax: 120,
       CL0: 0.26, CLa: 5.4, stallA: 0.31, CD0: 0.026, induced: 0.055,
       gearDrag: 0.010, flapLift: 0.0, flapDrag: 0.0,
       pitchPower: 4.6, rollPower: 11.0, yawPower: 2.0,
@@ -1266,12 +1557,76 @@ const AIRCRAFT = [
     build: buildFalcon,
     eye: [0, 0.75, -2.4], chase: 26, gearHeight: 1.5, jet: true,
     air: {
-      mass: 9500, wingArea: 28, maxThrust: 78000, vMax: 330,
+      mass: 9500, wingArea: 28, span: 9.6, maxThrust: 78000, vMax: 330,
       CL0: 0.14, CLa: 4.1, stallA: 0.33, CD0: 0.021, induced: 0.09,
       gearDrag: 0.02, flapLift: 0.3, flapDrag: 0.05,
       pitchPower: 3.4, rollPower: 8.0, yawPower: 1.4,
       pitchDamp: 4.0, rollDamp: 3.0, yawDamp: 2.0,
       pitchStab: 6.0, yawStab: 2.6,
+    },
+  },
+  {
+    id: "mustang",
+    name: "Comet P-51",
+    blurb: "A wartime fighter. Enormous prop, a tailwheel that wants to swap ends, and real speed.",
+    spec: "Rotate 95 kt · Cruise 300 kt · 4.3 t",
+    build: buildMustang,
+    eye: [0, 0.68, -0.4], chase: 19, gearHeight: 1.35, propDriven: true, taildragger: true,
+    air: {
+      mass: 4300, wingArea: 21.8, span: 11.3, maxThrust: 22000, vMax: 170,
+      CL0: 0.24, CLa: 5.0, stallA: 0.30, CD0: 0.023, induced: 0.05,
+      gearDrag: 0.014, flapLift: 0.4, flapDrag: 0.045,
+      pitchPower: 3.0, rollPower: 6.4, yawPower: 1.5,
+      pitchDamp: 4.4, rollDamp: 3.0, yawDamp: 2.2,
+      pitchStab: 7.5, yawStab: 3.0,
+    },
+  },
+  {
+    id: "bush",
+    name: "Kodiak STOL",
+    blurb: "Tundra tyres and a wing full of slats. Lands almost anywhere, including a hillside.",
+    spec: "Rotate 38 kt · Cruise 95 kt · 1.4 t",
+    build: buildBush,
+    eye: [0, 0.66, 0.9], chase: 17, gearHeight: 1.9, propDriven: true, taildragger: true, rough: true,
+    air: {
+      mass: 1400, wingArea: 25.5, span: 13.2, maxThrust: 8200, vMax: 68,
+      CL0: 0.52, CLa: 5.6, stallA: 0.36, CD0: 0.042, induced: 0.048,
+      gearDrag: 0.016, flapLift: 0.75, flapDrag: 0.06,
+      pitchPower: 3.0, rollPower: 4.0, yawPower: 1.4,
+      pitchDamp: 4.4, rollDamp: 3.2, yawDamp: 2.2,
+      pitchStab: 8.5, yawStab: 3.4,
+    },
+  },
+  {
+    id: "sea",
+    name: "Lagoon 18",
+    blurb: "A floatplane. The whole sea is your runway — and the lagoons, if you can find them.",
+    spec: "Rotate 52 kt · Cruise 100 kt · 1.2 t · lands on water",
+    build: buildSeaplane,
+    eye: [0, 0.6, 0.8], chase: 17, gearHeight: 2.1, propDriven: true, floats: true,
+    air: {
+      mass: 1250, wingArea: 18.0, span: 12.0, maxThrust: 5200, vMax: 78,
+      CL0: 0.34, CLa: 5.2, stallA: 0.30, CD0: 0.038, induced: 0.052,
+      gearDrag: 0.0, flapLift: 0.5, flapDrag: 0.045,
+      pitchPower: 2.4, rollPower: 4.0, yawPower: 1.2,
+      pitchDamp: 4.8, rollDamp: 3.0, yawDamp: 2.2,
+      pitchStab: 8.5, yawStab: 3.2,
+    },
+  },
+  {
+    id: "glider",
+    name: "Albatross G4",
+    blurb: "No engine. Eighteen metres of wing, and only the rising air to keep you up.",
+    spec: "Glides 38:1 · Stalls at 34 kt · no engine",
+    build: buildGlider,
+    eye: [0, 0.32, 1.1], chase: 22, gearHeight: 0.85, glider: true,
+    air: {
+      mass: 460, wingArea: 12.4, span: 18.0, maxThrust: 0, vMax: 60,
+      CL0: 0.58, CLa: 5.8, stallA: 0.30, CD0: 0.0078, induced: 0.016,
+      gearDrag: 0.003, flapLift: 0.0, flapDrag: 0.0,
+      pitchPower: 2.2, rollPower: 3.0, yawPower: 1.1,
+      pitchDamp: 5.2, rollDamp: 3.4, yawDamp: 2.4,
+      pitchStab: 9.5, yawStab: 3.4,
     },
   },
   {
@@ -1282,7 +1637,7 @@ const AIRCRAFT = [
     build: buildAtlas,
     eye: [0, 1.4, -12.5], chase: 62, gearHeight: 3.35, jet: true,
     air: {
-      mass: 62000, wingArea: 122, maxThrust: 320000, vMax: 270,
+      mass: 62000, wingArea: 122, span: 32.0, maxThrust: 320000, vMax: 270,
       CL0: 0.34, CLa: 5.0, stallA: 0.27, CD0: 0.019, induced: 0.048,
       gearDrag: 0.018, flapLift: 0.8, flapDrag: 0.07,
       pitchPower: 1.3, rollPower: 2.0, yawPower: 0.7,
@@ -1291,6 +1646,47 @@ const AIRCRAFT = [
     },
   },
 ];
+
+/* Wingtip trails. A wing only makes those ribbons when it is loaded up, so they appear with
+   G and with a high angle of attack — which makes them a real instrument: if you can see your
+   own vortices in a turn, you are close to asking too much of the wing. */
+const TRAIL_LEN = 90;
+const trails = [];
+function buildTrails() {
+  for (const side of [-1, 1]) {
+    const geo = new THREE.BufferGeometry();
+    const pts = new Float32Array(TRAIL_LEN * 3);
+    geo.setAttribute("position", new THREE.BufferAttribute(pts, 3));
+    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, fog: true,
+    }));
+    line.frustumCulled = false;
+    scene.add(line);
+    trails.push({ side, line, pts, head: 0, filled: 0 });
+  }
+}
+
+function updateTrails() {
+  const span = (air.span || 11) * 0.5;
+  const load = Math.max(Math.abs(plane.gForce) - 1.6, 0) * 0.5
+    + Math.max(Math.abs(plane.alpha) - 0.12, 0) * 3
+    + (plane.pos.y > 4200 && current.jet ? 0.8 : 0);
+  const show = !plane.onGround && plane.ias > 30 ? clamp(load, 0, 0.55) : 0;
+  for (const t of trails) {
+    const tip = tmp.copy(plane.pos)
+      .addScaledVector(axisR, t.side * span)
+      .addScaledVector(axisF, -1.2);
+    // ring buffer of the last ninety tip positions
+    t.pts[t.head * 3] = tip.x;
+    t.pts[t.head * 3 + 1] = tip.y;
+    t.pts[t.head * 3 + 2] = tip.z;
+    t.head = (t.head + 1) % TRAIL_LEN;
+    t.filled = Math.min(TRAIL_LEN, t.filled + 1);
+    t.line.geometry.attributes.position.needsUpdate = true;
+    t.line.geometry.setDrawRange(0, t.filled);
+    t.line.material.opacity += (show - t.line.material.opacity) * 0.08;
+  }
+}
 
 /* ================= flight model ================= */
 
@@ -1305,6 +1701,7 @@ const plane = {
   quat: new THREE.Quaternion(),
   omega: new THREE.Vector3(),   // body rates: x pitch, y yaw, z roll
   throttle: 0,
+  trim: 0,
   flaps: 0,                     // 0, 0.5, 1
   gearDown: true,
   brakes: true,
@@ -1321,6 +1718,23 @@ const plane = {
 };
 
 const input = { pitch: 0, roll: 0, yaw: 0, throttle: 0 };
+const autopilot = { on: false, alt: 0, hdg: 0 };
+
+function flyAutopilot(dt) {
+  if (!autopilot.on || plane.onGround || plane.crashed) return false;
+  const pitchNow = Math.asin(clamp(axisF.y, -1, 1));
+  const bankNow = -Math.asin(clamp(axisR.y, -1, 1));
+  // altitude through pitch, heading through bank — the way a real wing-leveller does it
+  const altErr = clamp((autopilot.alt - plane.pos.y) * 0.02, -0.16, 0.16);
+  input.pitch = clamp((altErr - pitchNow) * 2.4 - plane.omega.x * 0.8, -0.7, 0.7);
+  let hdgErr = autopilot.hdg - heading();
+  while (hdgErr > Math.PI) hdgErr -= Math.PI * 2;
+  while (hdgErr < -Math.PI) hdgErr += Math.PI * 2;
+  const wantBank = clamp(hdgErr * 1.4, -0.42, 0.42);
+  input.roll = clamp((wantBank - bankNow) * 2.2 - plane.omega.z * 0.5, -0.7, 0.7);
+  input.yaw *= 0.5;
+  return true;
+}
 
 /* Where you start. Three strips you can sit on, and four places you can simply appear —
    the point being that the island is worth arriving in from somewhere other than one runway. */
@@ -1351,21 +1765,27 @@ function resetPlane(inAir = false) {
   plane.score = null;
   plane.omega.set(0, 0, 0);
   plane.flaps = 0;
+  plane.trim = 0;
   plane.gearDown = true;
   plane.fuel = 1;
+  autopilot.on = false;
   document.getElementById("crash").hidden = true;
 
   const f = spawn.field || FIELDS[0];
-  const airborne = inAir || !!spawn.air;
+  // nothing without an engine is going anywhere from a standing start — a glider is released
+  // from a tow at two thousand feet over the field it chose
+  const airborne = inAir || !!spawn.air || !!current.glider;
 
   if (airborne) {
-    const a = spawn.air || {
-      pos: [f.x + Math.sin(f.hdg) * (current.jet ? 12000 : 6500),
-        f.elev + 760,
-        f.z + Math.cos(f.hdg) * (current.jet ? 12000 : 6500)],
-      hdg: f.hdg,
-      speed: current.jet ? 120 : 52,
-    };
+    const a = current.glider && !spawn.air
+      ? { pos: [f.x + 900, f.elev + 620, f.z + 1400], hdg: f.hdg, speed: 32 }
+      : spawn.air || {
+        pos: [f.x + Math.sin(f.hdg) * (current.jet ? 12000 : 6500),
+          f.elev + 760,
+          f.z + Math.cos(f.hdg) * (current.jet ? 12000 : 6500)],
+        hdg: f.hdg,
+        speed: current.jet ? 120 : 52,
+      };
     plane.pos.set(a.pos[0], a.pos[1], a.pos[2]);
     plane.quat.setFromEuler(new THREE.Euler(0, a.hdg, 0, "YXZ"));
     const v = current.jet ? Math.max(a.speed, 95) : a.speed;
@@ -1373,7 +1793,9 @@ function resetPlane(inAir = false) {
     plane.throttle = 0.7;
     plane.brakes = false;
     plane.onGround = false;
-    say(`${spawn.name}. ${Math.round(plane.pos.y * FT).toLocaleString()} feet, ${Math.round(v * KT)} knots.`);
+    say(current.glider
+      ? `Off the tow at ${Math.round(plane.pos.y * FT).toLocaleString()} feet. Find rising air — look for it over sunlit ground.`
+      : `${spawn.name}. ${Math.round(plane.pos.y * FT).toLocaleString()} feet, ${Math.round(v * KT)} knots.`);
   } else {
     // at the near end of the strip, pointing down it
     const back = f.len / 2 - 160;
@@ -1393,8 +1815,43 @@ const axisR = new THREE.Vector3();
 const tmp = new THREE.Vector3();
 const tmp2 = new THREE.Vector3();
 const invQ = new THREE.Quaternion();
+const relWind = new THREE.Vector3();
 
 const density = (alt) => 1.225 * Math.exp(-Math.max(0, alt) / 8500);
+
+/* The air is not still. A steady wind with gusts on top means a crosswind landing is a real
+   piece of flying, and it is why ground speed and airspeed stop agreeing with each other.
+   Thermals rise off sunlit low ground — the whole point of the glider. */
+const weather = { dirDeg: 250, speed: 6, gust: 2.5, thermals: 1 };
+const windVec = new THREE.Vector3();
+let windClock = 0;
+
+function windAt(pos, t) {
+  const dir = THREE.MathUtils.degToRad(weather.dirDeg);
+  // wind blows FROM dirDeg, and stiffens with height
+  const shear = 0.55 + clamp(pos.y / 900, 0, 1) * 0.75;
+  const gust = 1 + Math.sin(t * 0.7 + pos.x * 0.0013) * 0.5 + Math.sin(t * 1.9 + pos.z * 0.0017) * 0.5;
+  const speed = (weather.speed + weather.gust * gust) * shear;
+  windVec.set(-Math.sin(dir) * speed, 0, -Math.cos(dir) * speed);
+  windVec.y = thermalAt(pos, t);
+  return windVec;
+}
+
+/* Rising air: strongest over warm low ground in the middle of the day, nothing over the sea,
+   and arranged in columns you have to find and circle in. */
+function thermalAt(pos, t) {
+  if (pos.y > 2600 || pos.y < 5) return 0;
+  const g = groundAt(pos.x, pos.z);
+  if (g < 12) return -0.3;                                  // sinking air over water
+  const sunStrength = [0.7, 1.0, 0.5, 0.15][timeIndex] ?? 0.7;
+  // narrow strong cores with sink between them: you have to find one and stay in it
+  const cell = fbm(pos.x / 760 + t * 0.005, pos.z / 760 - t * 0.0035, 3);
+  const core = Math.pow(Math.max(0, cell - 0.04) * 3.1, 1.35);
+  const capped = clamp(1 - (pos.y - g) / 2100, 0, 1);       // dies out with height above ground
+  const lift = core * 7.4 * sunStrength * weather.thermals * capped;
+  // the air that goes up has to come down somewhere
+  return lift > 0.05 ? lift : -0.45 * sunStrength * capped;
+}
 
 function step(dt) {
   if (plane.crashed) return;
@@ -1405,11 +1862,17 @@ function step(dt) {
 
   const alt = plane.pos.y;
   const rho = density(alt);
-  const speed = plane.vel.length();
 
-  // relative wind in body axes gives angle of attack and sideslip
+  // everything aerodynamic happens relative to the air, which is itself moving
+  windClock += dt;
+  const wind = windAt(plane.pos, windClock);
+  const rel = relWind.copy(plane.vel).sub(wind);
+  const speed = rel.length();
+  plane.ias = speed;
+  plane.gs = plane.vel.length();
+
   invQ.copy(plane.quat).invert();
-  const vb = tmp.copy(plane.vel).applyQuaternion(invQ);
+  const vb = tmp.copy(rel).applyQuaternion(invQ);
   const alpha = speed > 1 ? Math.atan2(-vb.y, -vb.z) : 0;
   const beta = speed > 1 ? Math.asin(clamp(vb.x / speed, -1, 1)) : 0;
   plane.alpha = alpha;
@@ -1429,24 +1892,25 @@ function step(dt) {
 
   if (speed > 0.6) {
     const drag = q * air.wingArea * CD;
-    forces.addScaledVector(tmp2.copy(plane.vel).normalize(), -drag);
+    forces.addScaledVector(tmp2.copy(rel).normalize(), -drag);
     // lift acts perpendicular to the relative wind, in the aircraft's plane of symmetry
-    const liftDir = tmp2.copy(plane.vel).normalize().cross(axisR).normalize().multiplyScalar(-1);
+    const liftDir = tmp2.copy(rel).normalize().cross(axisR).normalize().multiplyScalar(-1);
     forces.addScaledVector(liftDir, q * air.wingArea * CL);
     // a little side force so slipping is felt
     forces.addScaledVector(axisR, -q * air.wingArea * 0.9 * beta);
   }
 
-  const thrust = plane.engineOn && plane.fuel > 0
-    ? plane.throttle * air.maxThrust * (rho / 1.225) * (1 - clamp(speed / 92, 0, 0.55))
+  const thrust = plane.engineOn && plane.fuel > 0 && air.maxThrust > 0
+    ? plane.throttle * air.maxThrust * (rho / 1.225) * (1 - clamp(speed / (air.vMax || 92), 0, 0.55))
     : 0;
   forces.addScaledVector(axisF, thrust);
   if (thrust > 0) plane.fuel = Math.max(0, plane.fuel - dt * 0.000038 * (0.35 + plane.throttle));
 
   // ---- moments, as angular accelerations ----
   const authority = clamp(q / 700, 0, 2.0);
+  const pitchCmd = clamp(input.pitch + plane.trim, -1, 1);
   const angAcc = new THREE.Vector3(
-    (input.pitch * air.pitchPower - alpha * air.pitchStab - plane.omega.x * air.pitchDamp) * authority,
+    (pitchCmd * air.pitchPower - alpha * air.pitchStab - plane.omega.x * air.pitchDamp) * authority,
     (-input.yaw * air.yawPower - beta * air.yawStab - plane.omega.y * air.yawDamp) * authority,
     (-input.roll * air.rollPower - plane.omega.z * air.rollDamp) * authority,
   );
@@ -1503,11 +1967,17 @@ function step(dt) {
     const vy = plane.vel.y;
     const bank = Math.abs(Math.asin(clamp(axisR.y, -1, 1)));
     const nose = Math.asin(clamp(axisF.y, -1, 1));
-    const roughGround = !onRunway && speed > 24;
-    if (!plane.gearDown && speed > 8) return crash("Gear up. That was expensive.");
-    if (speed > 12 && (vy < -4.4 || bank > 0.32 || nose < -0.28 || roughGround)) {
-      return crash(vy < -4.4 ? "Hard landing — the gear let go."
-        : roughGround ? "You put it down off the field."
+    const onWater = groundNow <= SEA + 0.4;
+    const gentle = current.rough ? 0.55 : 0.35;        // how level it has to be
+    const sinkLimit = current.rough ? 6.0 : current.floats ? 3.4 : 4.4;
+
+    // where you are allowed to put it down depends on what you are flying
+    const goodPlace = onWater ? !!current.floats : onRunway || !!current.rough;
+    if (onWater && !current.floats) return crash("You went into the sea.");
+    if (!plane.gearDown && speed > 8 && !current.floats) return crash("Gear up. That was expensive.");
+    if (speed > 12 && (vy < -sinkLimit || bank > gentle || nose < -0.28 || (!goodPlace && speed > 24))) {
+      return crash(vy < -sinkLimit ? "Hard landing — the gear let go."
+        : !goodPlace ? "You put it down off the field."
         : "A wingtip caught the ground.");
     }
     const rate = Math.round(-vy * 196.85);
@@ -1617,6 +2087,11 @@ const hud = {
   msg: document.getElementById("msg"),
   mapDot: document.getElementById("map-dot"),
   mapPlane: document.getElementById("map-plane"),
+  trim: document.getElementById("i-trim"),
+  ap: document.getElementById("i-ap"),
+  wind: document.getElementById("i-wind"),
+  windArrow: document.getElementById("wind-arrow"),
+  plane: document.getElementById("i-plane"),
 };
 
 let msgTimer = 0;
@@ -1627,8 +2102,7 @@ function say(text) {
 }
 
 function updateHUD(dt) {
-  const speed = plane.vel.length();
-  const kts = speed * KT;
+  const kts = (plane.ias ?? plane.vel.length()) * KT;
   hud.spd.textContent = Math.round(kts);
   hud.alt.textContent = Math.round(plane.pos.y * FT).toLocaleString();
   hud.vsi.textContent = `${plane.vel.y > 0 ? "+" : ""}${Math.round(plane.vel.y * 196.85)}`;
@@ -1644,6 +2118,18 @@ function updateHUD(dt) {
   hud.brakes.className = plane.brakes ? "warn" : "";
   hud.fuel.style.width = `${plane.fuel * 100}%`;
   hud.cam.textContent = CAMS[camMode];
+  hud.trim.textContent = plane.trim === 0 ? "0" : `${plane.trim > 0 ? "+" : "−"}${Math.abs(plane.trim * 100).toFixed(0)}`;
+  hud.ap.textContent = autopilot.on ? "HOLD" : "OFF";
+  hud.ap.className = autopilot.on ? "ok" : "";
+
+  // wind: where it is coming from, and how hard, with the arrow pointing downwind on screen
+  const w = windAt(plane.pos, windClock);
+  const windKt = Math.hypot(w.x, w.z) * KT;
+  const from = (THREE.MathUtils.radToDeg(Math.atan2(-w.x, -w.z)) + 360) % 360;
+  const rel = (from - THREE.MathUtils.radToDeg(heading()) + 540) % 360 - 180;
+  hud.wind.textContent = `${String(Math.round(from)).padStart(3, "0")}° ${Math.round(windKt)}kt`;
+  hud.windArrow.setAttribute("transform", `rotate(${rel + 180} 20 20)`);
+  if (w.y > 1.4) hud.wind.textContent += ` ↑${w.y.toFixed(1)}`;
 
   // artificial horizon
   const pitch = Math.asin(clamp(axisF.y, -1, 1));
@@ -1687,12 +2173,28 @@ addEventListener("keydown", (e) => {
   if (k === "m") { const el = document.getElementById("hangar"); el.hidden = !el.hidden; document.getElementById("help").hidden = true; document.getElementById("places").hidden = true; renderHangar(); }
   if (k === "j") { const el = document.getElementById("places"); el.hidden = !el.hidden; document.getElementById("help").hidden = true; document.getElementById("hangar").hidden = true; renderPlaces(); }
   if (k === "l") applyTime(timeIndex + 1);
+  if (k === "a" && e.shiftKey) { /* handled below as autopilot */ }
+  if (k === "p") {
+    if (plane.onGround) { say("Autopilot needs you in the air."); }
+    else {
+      autopilot.on = !autopilot.on;
+      autopilot.alt = plane.pos.y;
+      autopilot.hdg = heading();
+      say(autopilot.on
+        ? `Autopilot holding ${Math.round(plane.pos.y * FT).toLocaleString()} ft and ${String(Math.round((THREE.MathUtils.radToDeg(heading()) + 360) % 360)).padStart(3, "0")}°.`
+        : "Autopilot off.");
+    }
+  }
+  if (k === "0") { plane.trim = 0; say("Trim neutral."); }
+  if (k === "k") { tutorial.on ? stopTutorial("Tutorial stopped.") : startTutorial(); }
 });
 addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
 addEventListener("blur", () => keys.clear());
 
 function readInput(dt) {
   const held = (...names) => names.some((n) => keys.has(n));
+  if (held("[")) plane.trim = clamp(plane.trim - dt * 0.35, -0.6, 0.6);
+  if (held("]")) plane.trim = clamp(plane.trim + dt * 0.35, -0.6, 0.6);
   const target = { pitch: 0, roll: 0, yaw: 0 };
   // up means climb: this is a game before it is a yoke
   if (held("arrowup", "w")) target.pitch = 1;
@@ -1712,9 +2214,15 @@ function readInput(dt) {
   if (stick.active) { target.pitch = -stick.y; target.roll = stick.x; }
 
   const rate = 4.5;
+  input.yaw += (target.yaw - input.yaw) * clamp(dt * rate * 1.4, 0, 1);
+  // any stick input takes the autopilot out
+  if (autopilot.on && (Math.abs(target.pitch) > 0.05 || Math.abs(target.roll) > 0.05)) {
+    autopilot.on = false;
+    say("Autopilot off.");
+  }
+  if (flyAutopilot(dt)) return;
   input.pitch += (target.pitch - input.pitch) * clamp(dt * rate, 0, 1);
   input.roll += (target.roll - input.roll) * clamp(dt * rate, 0, 1);
-  input.yaw += (target.yaw - input.yaw) * clamp(dt * rate * 1.4, 0, 1);
 }
 
 /* touch: a stick on the left, a throttle on the right */
@@ -1796,6 +2304,142 @@ function updateAudio() {
   audio.gain.gain.value = plane.crashed ? 0 : Math.min(0.22, rpm / 90 * 0.16 + wind);
 }
 
+/* ================= the tutorial ================= */
+
+/* A first flight, taught by watching. Every step names one thing to do and then waits until
+   the aircraft's own state says you did it — no scripted cutscenes, no fake controls. If you
+   wander off, the step simply stays put until you come back to it. */
+const LESSONS = [
+  {
+    title: "Brakes off",
+    say: "You're holding on runway 36 in the Skylark. Press B to release the brakes.",
+    hint: "B",
+    done: () => !plane.brakes,
+  },
+  {
+    title: "Full power",
+    say: "Now open the throttle all the way — press 3, or hold Shift.",
+    hint: "3",
+    done: () => plane.throttle > 0.9,
+  },
+  {
+    title: "Keep it straight",
+    say: "She'll pull to one side as the speed builds. Use Q and E to keep the nose on the centreline.",
+    hint: "Q / E",
+    done: () => plane.ias * KT > 35,
+  },
+  {
+    title: "Rotate",
+    say: "Fifty-five knots — ease back on the stick with the up arrow, and only a little.",
+    hint: "↑",
+    done: () => !plane.onGround && plane.pos.y > FIELD_ELEV + 12,
+  },
+  {
+    title: "Climb away",
+    say: "You're flying. Hold about ten degrees nose-up and climb to 1,500 feet.",
+    hint: "↑ / ↓",
+    done: () => plane.pos.y * FT > 1500,
+  },
+  {
+    title: "Level off",
+    say: "Ease the nose down until the vertical speed settles near zero, and bring the power back to about half.",
+    hint: "↓ then 2",
+    done: () => Math.abs(plane.vel.y) < 2.2 && plane.throttle < 0.75 && plane.pos.y * FT > 1200,
+  },
+  {
+    title: "Turn right",
+    say: "Roll right with D and hold a gentle bank. Bring the nose round to east — heading 090.",
+    hint: "D",
+    done: () => {
+      const h = (THREE.MathUtils.radToDeg(heading()) + 360) % 360;
+      return Math.abs(h - 90) < 18;
+    },
+  },
+  {
+    title: "Roll out",
+    say: "Level the wings with A. Notice how the nose drops when you stop turning — that's the lift you were using to pull it round.",
+    hint: "A",
+    done: () => Math.abs(Math.asin(clamp(axisR.y, -1, 1))) < 0.09,
+  },
+  {
+    title: "Find a stall",
+    say: "Close the throttle and hold the nose up. Listen for the stall warning — then lower the nose to fly again.",
+    hint: "1, then ↑",
+    done: () => tutorial.stalled && !plane.stall && plane.pos.y > FIELD_ELEV + 120,
+    watch: () => { if (plane.stall) tutorial.stalled = true; },
+  },
+  {
+    title: "Head home",
+    say: "Isla Verde is behind you. Turn back to the north — heading 360 — and let down towards 1,000 feet.",
+    hint: "A / D",
+    done: () => {
+      const h = (THREE.MathUtils.radToDeg(heading()) + 360) % 360;
+      return (h < 22 || h > 338) && plane.pos.z > 1200;
+    },
+  },
+  {
+    title: "Set up the approach",
+    say: "Drop the flaps with F and carry about sixty-five knots. Aim at the near end of the runway.",
+    hint: "F",
+    done: () => plane.flaps > 0 && plane.pos.y * FT < 1400,
+  },
+  {
+    title: "Land it",
+    say: "Hold the centreline, let it sink, and ease the nose up just before the wheels touch.",
+    hint: "↑ gently",
+    done: () => plane.onGround && plane.ias * KT < 60,
+  },
+];
+
+const tutorial = { on: false, step: 0, stalled: false, timer: 0 };
+
+function startTutorial() {
+  tutorial.on = true;
+  tutorial.step = 0;
+  tutorial.stalled = false;
+  document.getElementById("help").hidden = true;
+  document.getElementById("hangar").hidden = true;
+  document.getElementById("places").hidden = true;
+  spawn = SPAWNS[0];
+  selectAircraft(0, false);
+  renderLesson();
+}
+
+function stopTutorial(message) {
+  tutorial.on = false;
+  document.getElementById("lesson").hidden = true;
+  if (message) say(message);
+}
+
+function renderLesson() {
+  const box = document.getElementById("lesson");
+  if (!tutorial.on) { box.hidden = true; return; }
+  const l = LESSONS[tutorial.step];
+  box.hidden = false;
+  document.getElementById("lesson-step").textContent = `Step ${tutorial.step + 1} of ${LESSONS.length}`;
+  document.getElementById("lesson-title").textContent = l.title;
+  document.getElementById("lesson-say").textContent = l.say;
+  document.getElementById("lesson-hint").textContent = l.hint;
+  document.getElementById("lesson-bar").style.width = `${(tutorial.step / LESSONS.length) * 100}%`;
+}
+
+function updateTutorial(dt) {
+  if (!tutorial.on || plane.crashed) return;
+  const l = LESSONS[tutorial.step];
+  if (l.watch) l.watch();
+  tutorial.timer += dt;
+  if (!l.done()) return;
+  tutorial.timer = 0;
+  tutorial.step++;
+  if (tutorial.step >= LESSONS.length) {
+    stopTutorial("That's a circuit — take-off, turn, stall, approach and landing. The island is yours.");
+    document.getElementById("lesson-done").hidden = false;
+    return;
+  }
+  renderLesson();
+  say(`✓ ${l.title}`);
+}
+
 /* ================= loop ================= */
 
 const loadingSub = document.querySelector(".loading-sub");
@@ -1825,6 +2469,7 @@ await loadStep("Planting nine thousand trees…");
 scatterTrees();
 await loadStep("Rolling out the weather…");
 buildClouds();
+buildTrails();
 
 /* Changing aircraft swaps the mesh, the aerodynamics and the camera offsets together. */
 let planeMesh = null;
@@ -1961,6 +2606,7 @@ function frame(now) {
   water.position.z = camera.position.z;
   water.material.uniforms.uTime.value = now / 1000;
   water.material.uniforms.uFogColor.value.copy(scene.fog.color);
+  updateTrails();
   for (const r of turbines) r.rotation.z -= wall * 0.9;
   if (beacon) beacon.rotation.y += wall * 0.55;
   for (const b of boats) {
@@ -1975,6 +2621,7 @@ function frame(now) {
   sky.position.copy(camera.position);
   updateCamera(wall);
   updateHUD(wall);
+  updateTutorial(wall);
   updateAudio();
   renderer.render(scene, camera);
 }
@@ -1984,4 +2631,6 @@ requestAnimationFrame(frame);
 
 /* A handle for testing the flight model without the renderer: the physics is deterministic and
    fixed-step, so it can be run headlessly and checked against real numbers. */
-window.__sim = { plane, input, air, step, groundAt, surfaceAt, resetPlane, heading, keys, CAMS, KT, FT, AIRCRAFT, selectAircraft, applyTime, SPAWNS, FIELDS, setSpawn: (i) => { spawn = SPAWNS[i]; } };
+window.__sim = { plane, input, air, step, groundAt, surfaceAt, pavementAt, resetPlane, heading, keys, CAMS, KT, FT,
+  AIRCRAFT, selectAircraft, applyTime, SPAWNS, FIELDS, weather, autopilot, LESSONS, tutorial, startTutorial, updateTutorial, windAt,
+  setSpawn: (i) => { spawn = SPAWNS[i]; } };

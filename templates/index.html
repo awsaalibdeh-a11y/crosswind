@@ -78,6 +78,8 @@
         <div><dt>Gear</dt><dd id="i-gear" class="ok">DOWN</dd></div>
         <div><dt>Brakes</dt><dd id="i-brakes" class="warn">ON</dd></div>
         <div><dt>G</dt><dd id="i-g">1.0</dd></div>
+        <div><dt>Trim</dt><dd id="i-trim">0</dd></div>
+        <div><dt>A/P</dt><dd id="i-ap">OFF</dd></div>
       </dl>
       <div class="fuel"><span id="i-fuel"></span></div>
     </div>
@@ -94,6 +96,19 @@
         </g>
       </svg>
       <span class="map-label">Isla Verde · RWY 36</span>
+    </div>
+
+    <div class="lesson" id="lesson" hidden>
+      <div class="lesson-bar"><span id="lesson-bar"></span></div>
+      <p class="lesson-step" id="lesson-step"></p>
+      <h3 id="lesson-title"></h3>
+      <p class="lesson-say" id="lesson-say"></p>
+      <p class="lesson-hint"><kbd id="lesson-hint"></kbd></p>
+    </div>
+
+    <div class="wind" id="wind">
+      <svg viewBox="0 0 40 40" aria-hidden="true"><g id="wind-arrow"><path d="M20 6 L25 22 L20 18 L15 22 Z" fill="currentColor"/></g></svg>
+      <span id="i-wind">—</span>
     </div>
 
     <div class="cam-tag" id="i-cam">Chase</div>
@@ -113,6 +128,13 @@
     </div>
   </div>
 
+  <div class="card" id="lesson-done" hidden>
+    <h2>First flight done</h2>
+    <p>That was a full circuit: take-off, a turn, a stall and a recovery, an approach and a landing. Everything else on the island is a variation on it.</p>
+    <p>Eight aircraft in the hangar, seven places to start, and a carrier out west with a deck you can land on.</p>
+    <div class="card-btns"><button type="button" onclick="document.getElementById('lesson-done').hidden = true">Go flying</button></div>
+  </div>
+
   <div class="card" id="crash" hidden>
     <h2>Flight over</h2>
     <p id="crash-why"></p>
@@ -124,7 +146,7 @@
 
   <div class="card hangar" id="hangar" hidden>
     <h2>The hangar</h2>
-    <p>Four aircraft, four completely different things to fly.</p>
+    <p>Eight aircraft, from a trainer to an airliner — and a glider with no engine at all.</p>
     <div class="planes" id="plane-list"></div>
     <div class="card-btns"><button type="button" id="hangar-close">Close</button></div>
   </div>
@@ -132,13 +154,14 @@
   <div class="card hangar" id="places" hidden>
     <h2>Where to start</h2>
     <p>Three strips on the island, and four places to simply appear.</p>
+    <p class="help-lead">New here? Press <kbd>K</kbd> and I'll teach you to fly.</p>
     <div class="planes" id="place-list"></div>
     <div class="card-btns"><button type="button" id="places-close">Close</button></div>
   </div>
 
   <div class="card help" id="help">
     <h2>Crosswind</h2>
-    <p class="help-lead">A light single on an island strip. Full throttle, keep it straight, and ease back at about 55 knots.</p>
+    <p class="help-lead">A light single on an island strip. New to this? Press <kbd>K</kbd> and I'll talk you through a whole circuit.</p>
     <dl>
       <div><dt>W / S <em>or</em> ↑ ↓</dt><dd>Pitch</dd></div>
       <div><dt>A / D <em>or</em> ← →</dt><dd>Roll</dd></div>
@@ -149,10 +172,13 @@
       <div><dt>R · T</dt><dd>Restart on the runway · in the air</dd></div>
       <div><dt>N</dt><dd>Next aircraft · <em>M</em> opens the hangar</dd></div>
       <div><dt>J</dt><dd>Where to start — strips, mountains, carrier, city</dd></div>
+      <div><dt>K</dt><dd>Start or stop the tutorial</dd></div>
+      <div><dt>P</dt><dd>Autopilot · <em>[ ]</em> trim · <em>0</em> trim neutral</dd></div>
       <div><dt>L</dt><dd>Time of day — morning to dusk</dd></div>
       <div><dt>H</dt><dd>Show or hide this</dd></div>
     </dl>
     <div class="card-btns">
+      <button type="button" data-key="k">Teach me to fly</button>
       <button type="button" data-key="m">Aircraft</button>
       <button type="button" data-key="j">Where to start</button>
       <button type="button" data-key="h">Fly</button>
