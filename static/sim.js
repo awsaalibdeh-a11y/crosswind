@@ -151,23 +151,24 @@ function buildHeightmap() {
    height. Dead flat over the strip, blended out into whatever the hills were doing. */
 function flattenPad(f) {
   const half = WORLD / 2;
-  const innerX = f.len / 2 + 220, innerZ = f.w / 2 + 220;
-  const outerX = innerX + 1500, outerZ = innerZ + 1200;
-  const cos = Math.cos(-f.hdg), sin = Math.sin(-f.hdg);
+  const innerAlong = f.len / 2 + 220, innerAcross = f.w / 2 + 220;
+  const outerAlong = innerAlong + 1300, outerAcross = innerAcross + 1100;
+  const c = Math.cos(f.hdg), sn = Math.sin(f.hdg);
+  const reach = Math.max(outerAlong, outerAcross);
   for (let j = 0; j < GRID; j++) {
     const z = -half + (j / (GRID - 1)) * WORLD;
-    if (Math.abs(z - f.z) > outerX + outerZ) continue;
+    if (Math.abs(z - f.z) > reach) continue;
     for (let i = 0; i < GRID; i++) {
       const x = -half + (i / (GRID - 1)) * WORLD;
-      // into the strip's own frame, so a strip can sit at any heading
       const dx = x - f.x, dz = z - f.z;
-      const lx = Math.abs(dx * cos - dz * sin);   // along the runway
-      const lz = Math.abs(dx * sin + dz * cos);   // across it
-      if (lx > outerX || lz > outerZ) continue;
-      const tx = lx <= innerX ? 1 : smooth(clamp((outerX - lx) / (outerX - innerX), 0, 1));
-      const tz = lz <= innerZ ? 1 : smooth(clamp((outerZ - lz) / (outerZ - innerZ), 0, 1));
+      if (Math.abs(dx) > reach) continue;
+      const across = Math.abs(dx * c - dz * sn);
+      const along = Math.abs(dx * sn + dz * c);
+      if (along > outerAlong || across > outerAcross) continue;
+      const ta = along <= innerAlong ? 1 : smooth(clamp((outerAlong - along) / (outerAlong - innerAlong), 0, 1));
+      const tc = across <= innerAcross ? 1 : smooth(clamp((outerAcross - across) / (outerAcross - innerAcross), 0, 1));
       const k = j * GRID + i;
-      heights[k] = lerp(heights[k], f.elev, Math.min(tx, tz));
+      heights[k] = lerp(heights[k], f.elev, Math.min(ta, tc));
     }
   }
 }
@@ -184,6 +185,22 @@ function groundAt(x, z) {
   const h01 = heights[(j + 1) * GRID + i];
   const h11 = heights[(j + 1) * GRID + i + 1];
   return Math.max(SEA, lerp(lerp(h00, h10, tx), lerp(h01, h11, tx), tz));
+}
+
+/* Somewhere you are allowed to put the wheels down: any of the strips, or the carrier deck.
+   Anywhere else at speed is an off-field landing, which ends badly. */
+function pavementAt(x, z) {
+  for (const f of FIELDS) {
+    const dx = x - f.x, dz = z - f.z;
+    const c = Math.cos(f.hdg), sn = Math.sin(f.hdg);
+    const across = Math.abs(dx * c - dz * sn);
+    const along = Math.abs(dx * sn + dz * c);
+    if (along < f.len / 2 + 30 && across < f.w / 2 + 10) return f;
+  }
+  for (const d of DECKS) {
+    if (x > d.x0 && x < d.x1 && z > d.z0 && z < d.z1) return d;
+  }
+  return null;
 }
 
 /* Flat decks you can also land on — the carrier, for now. Checked after the terrain so a deck
@@ -1443,7 +1460,8 @@ function step(dt) {
   // ---- ground ----
   const ground = surfaceAt(plane.pos.x, plane.pos.z);
   const gearHeight = plane.gearDown ? current.gearHeight : current.gearHeight * 0.5;
-  const onRunway = Math.abs(plane.pos.x) < RUNWAY_W / 2 + 6 && Math.abs(plane.pos.z) < RUNWAY_LEN / 2;
+  const pavement = pavementAt(plane.pos.x, plane.pos.z);
+  const onRunway = !!pavement;
   const wheelY = plane.pos.y - gearHeight;
 
   // rolling friction and steering use last step's contact; the constraint below re-decides it
@@ -1493,10 +1511,13 @@ function step(dt) {
         : "A wingtip caught the ground.");
     }
     const rate = Math.round(-vy * 196.85);
-    const offCentre = Math.abs(plane.pos.x);
-    plane.score = { rate, offCentre: Math.round(offCentre), speed: Math.round(speed * KT), onRunway };
+    // distance from that strip's own centreline, not from the world origin
+    const offCentre = pavement && pavement.hdg !== undefined
+      ? Math.abs((plane.pos.x - pavement.x) * Math.cos(pavement.hdg) - (plane.pos.z - pavement.z) * Math.sin(pavement.hdg))
+      : Math.abs(plane.pos.x - (pavement ? (pavement.x0 + pavement.x1) / 2 : 0));
+    plane.score = { rate, offCentre: Math.round(offCentre), speed: Math.round(speed * KT), onRunway, where: pavement?.name };
     say(onRunway
-      ? `Touchdown · ${rate} fpm · ${Math.round(offCentre)} m off the centreline · ${grade(rate, offCentre)}`
+      ? `${pavement.name} · ${rate} fpm · ${grade(rate, offCentre)}`
       : "Down in one piece, but that wasn't the runway.");
   }
   plane.onGround = touching;
