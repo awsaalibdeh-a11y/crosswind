@@ -129,6 +129,13 @@
     <div class="card-btns"><button type="button" id="hangar-close">Close</button></div>
   </div>
 
+  <div class="card hangar" id="places" hidden>
+    <h2>Where to start</h2>
+    <p>Three strips on the island, and four places to simply appear.</p>
+    <div class="planes" id="place-list"></div>
+    <div class="card-btns"><button type="button" id="places-close">Close</button></div>
+  </div>
+
   <div class="card help" id="help">
     <h2>Crosswind</h2>
     <p class="help-lead">A light single on an island strip. Full throttle, keep it straight, and ease back at about 55 knots.</p>
@@ -141,11 +148,13 @@
       <div><dt>C</dt><dd>Change view</dd></div>
       <div><dt>R · T</dt><dd>Restart on the runway · in the air</dd></div>
       <div><dt>N</dt><dd>Next aircraft · <em>M</em> opens the hangar</dd></div>
+      <div><dt>J</dt><dd>Where to start — strips, mountains, carrier, city</dd></div>
       <div><dt>L</dt><dd>Time of day — morning to dusk</dd></div>
       <div><dt>H</dt><dd>Show or hide this</dd></div>
     </dl>
     <div class="card-btns">
-      <button type="button" data-key="m">Choose an aircraft</button>
+      <button type="button" data-key="m">Aircraft</button>
+      <button type="button" data-key="j">Where to start</button>
       <button type="button" data-key="h">Fly</button>
     </div>
   </div>
