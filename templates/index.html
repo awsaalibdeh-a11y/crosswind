@@ -97,6 +97,7 @@
     </div>
 
     <div class="cam-tag" id="i-cam">Chase</div>
+    <div class="plane-tag" id="i-plane">Skylark 172</div>
     <p class="msg" id="msg" hidden></p>
   </div>
 
@@ -121,6 +122,13 @@
     </div>
   </div>
 
+  <div class="card hangar" id="hangar" hidden>
+    <h2>The hangar</h2>
+    <p>Four aircraft, four completely different things to fly.</p>
+    <div class="planes" id="plane-list"></div>
+    <div class="card-btns"><button type="button" id="hangar-close">Close</button></div>
+  </div>
+
   <div class="card help" id="help">
     <h2>Crosswind</h2>
     <p class="help-lead">A light single on an island strip. Full throttle, keep it straight, and ease back at about 55 knots.</p>
@@ -132,9 +140,14 @@
       <div><dt>G · F · B</dt><dd>Gear · flaps · brakes</dd></div>
       <div><dt>C</dt><dd>Change view</dd></div>
       <div><dt>R · T</dt><dd>Restart on the runway · in the air</dd></div>
+      <div><dt>N</dt><dd>Next aircraft · <em>M</em> opens the hangar</dd></div>
+      <div><dt>L</dt><dd>Time of day — morning to dusk</dd></div>
       <div><dt>H</dt><dd>Show or hide this</dd></div>
     </dl>
-    <div class="card-btns"><button type="button" data-key="h">Fly</button></div>
+    <div class="card-btns">
+      <button type="button" data-key="m">Choose an aircraft</button>
+      <button type="button" data-key="h">Fly</button>
+    </div>
   </div>
 
   <script type="module" src="{{ url_for('static', filename='sim.js') }}?v={{ asset_v }}"></script>
