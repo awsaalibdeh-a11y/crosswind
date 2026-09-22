@@ -24,21 +24,21 @@ const FT = 3.28084;         // m to feet
    heightmap for flat ground and then sweeping the runway heading to find the line that needs
    the least cut and fill — which is roughly how you would site a real one. */
 const FIELDS = [
-  { id: "intl", name: "Isla Verde Intl", kind: "intl", icao: "IVIV", x: 0, z: 0, elev: 62, len: 2600, w: 46, hdg: 0,
+  { id: "intl", name: "Isla Verde Intl", kind: "intl", icao: "IVIV", x: 0, z: 0, elev: 62, len: 2600, w: 46, hdg: 0, approach: 3200,
     blurb: "The main field. Long tarmac, a tower, hangars and a PAPI on the approach." },
-  { id: "puerto", name: "Puerto Sur", kind: "regional", icao: "IVPS", x: -2000, z: 5200, elev: 109, len: 2000, w: 42, hdg: 1.13,
+  { id: "puerto", name: "Puerto Sur", kind: "regional", icao: "IVPS", x: -2000, z: 5200, elev: 109, len: 2000, w: 42, hdg: 1.13, approach: 3000,
     blurb: "The city's own airport, a mile inland from the towers. Long enough for anything in the hangar." },
-  { id: "oeste", name: "Punta Oeste", kind: "strip", icao: "IVPO", x: -5200, z: 200, elev: 114, len: 1500, w: 34, hdg: 3.05,
+  { id: "oeste", name: "Punta Oeste", kind: "strip", icao: "IVPO", x: -5200, z: 200, elev: 114, len: 1500, w: 34, hdg: 3.05, approach: 2600,
     blurb: "A flat coastal field on the west shore. The lighthouse stands off the approach end." },
-  { id: "bahia", name: "Bahía Este", kind: "strip", icao: "IVBE", x: 5600, z: 3400, elev: 67, len: 1250, w: 30, hdg: 2.53,
+  { id: "bahia", name: "Bahía Este", kind: "strip", icao: "IVBE", x: 5600, z: 3400, elev: 67, len: 1250, w: 30, hdg: 2.53, approach: 2600,
     blurb: "Low ground on the east coast, sheltered from the range. The easiest field after the main one." },
-  { id: "norte", name: "Alto Norte", kind: "grass", icao: "IVAN", x: 3200, z: -6000, elev: 236, len: 700, w: 26, hdg: 2.09,
+  { id: "norte", name: "Alto Norte", kind: "grass", icao: "IVAN", x: 3200, z: -6000, elev: 236, len: 700, w: 26, hdg: 2.09, approach: 2000,
     blurb: "A grass field in the northern foothills. No tarmac, no lights, and trees off both ends." },
-  { id: "ridge", name: "Ridge Strip", kind: "strip", icao: "IVRS", x: 2950, z: -3950, elev: 1180, len: 760, w: 24, hdg: 0.42,
+  { id: "ridge", name: "Ridge Strip", kind: "strip", icao: "IVRS", x: 2950, z: -3950, elev: 1180, len: 760, w: 24, hdg: 0.42, approach: 2400,
     blurb: "A shelf cut into the mountains at 3,900 ft. Short, high and unforgiving." },
-  { id: "condor", name: "Cóndor Shelf", kind: "grass", icao: "IVCS", x: 600, z: -4600, elev: 1445, len: 520, w: 22, hdg: 0.79,
+  { id: "condor", name: "Cóndor Shelf", kind: "grass", icao: "IVCS", x: 600, z: -4600, elev: 1445, len: 520, w: 22, hdg: 0.79, approach: 1600,
     blurb: "520 m of gravel terraced into the range at 4,700 ft. The hardest place to land on the island." },
-  { id: "cala", name: "Cala Beach", kind: "beach", icao: "IVCB", x: -4600, z: 2900, elev: 16, len: 980, w: 28, hdg: 1.15,
+  { id: "cala", name: "Cala Beach", kind: "beach", icao: "IVCB", x: -4600, z: 2900, elev: 16, len: 980, w: 28, hdg: 1.15, approach: 2000,
     blurb: "A sand strip along the south-west shore. Sea at both ends." },
 ];
 
@@ -161,6 +161,49 @@ function buildHeightmap() {
     }
   }
   for (const f of FIELDS) flattenPad(f);
+  for (const f of FIELDS) clearApproach(f);
+}
+
+/* Real airports keep an obstacle-free surface sloping up from each threshold, and this island
+   badly needed one: the main runway had a 63 m hill sitting 1,200 m off the approach end, so
+   flying a normal three-degree final put you into the ground every time. This cuts a widening
+   corridor off each threshold and clamps anything inside it below a 2.2-degree surface — a
+   shade shallower than the approach you fly, so there is margin. It only ever cuts terrain
+   down, never fills it up, and it fades out at the corridor edges so it reads as a valley
+   leading to the strip rather than a trench. */
+function clearApproach(f) {
+  const half = WORLD / 2;
+  const reach = f.approach ?? 2600;
+  if (reach <= 0) return;
+  const rise = Math.tan(0.038);                 // 2.2 degrees
+  const c = Math.cos(f.hdg), sn = Math.sin(f.hdg);
+  const edge = 260;                             // how far the cut fades out sideways
+  const box = f.len / 2 + reach;
+
+  for (let j = 0; j < GRID; j++) {
+    const z = -half + (j / (GRID - 1)) * WORLD;
+    if (Math.abs(z - f.z) > box + edge) continue;
+    for (let i = 0; i < GRID; i++) {
+      const x = -half + (i / (GRID - 1)) * WORLD;
+      const dx = x - f.x, dz = z - f.z;
+      if (Math.abs(dx) > box + edge) continue;
+      const across = Math.abs(dx * c - dz * sn);
+      const along = Math.abs(dx * sn + dz * c);
+      const out = along - f.len / 2;             // metres beyond the threshold
+      if (out <= 0 || out > reach) continue;
+
+      // the corridor starts just wider than the strip and opens out as it goes
+      const wide = f.w / 2 + 110 + out * 0.16;
+      if (across > wide + edge) continue;
+      const side = across <= wide ? 1 : smooth(clamp((wide + edge - across) / edge, 0, 1));
+      const taper = smooth(clamp((reach - out) / 700, 0, 1));   // ease off at the far end
+      const ceiling = f.elev + out * rise;
+      const k = j * GRID + i;
+      if (heights[k] > ceiling) {
+        heights[k] = lerp(heights[k], ceiling, side * taper);
+      }
+    }
+  }
 }
 
 /* Every airstrip needs ground that is exactly level, because its tarmac is drawn at a fixed
@@ -236,6 +279,20 @@ function pavementAt(x, z) {
     if (x > d.x0 && x < d.x1 && z > d.z0 && z < d.z1) return d;
   }
   return null;
+}
+
+/* How rough is the ground here? Rise over run, from the same heightmap the wheels collide
+   with. This is what decides whether an arrival off the tarmac is a bad landing or an accident:
+   a flat coastal plain or the graded ground beside a runway is survivable, a mountainside is
+   not. Before this the rule was simply "not on a runway, above 47 knots, you die", which killed
+   you for touching down a few metres short of a 2,600 m strip. */
+function groundRoughness(x, z) {
+  const g = surfaceAt(x, z);
+  let worst = 0;
+  for (const [ox, oz] of [[24, 0], [-24, 0], [0, 24], [0, -24], [17, 17], [-17, -17]]) {
+    worst = Math.max(worst, Math.abs(surfaceAt(x + ox, z + oz) - g));
+  }
+  return worst / 24;
 }
 
 /* Flat decks you can also land on — the carrier, for now. Checked after the terrain so a deck
@@ -2003,6 +2060,11 @@ const plane = {
   fuel: 1,
   alpha: 0,
   beta: 0,
+  // airspeed and ground speed only get written once a step has run, and anything reading them
+  // before that — the HUD on the first frame, a tutorial condition, a script driving __sim —
+  // got undefined and quietly turned its own arithmetic into NaN
+  ias: 0,
+  gs: 0,
   gForce: 1,
   propAngle: 0,
   stall: false,
@@ -2082,6 +2144,7 @@ function resetPlane(inAir = false) {
     plane.throttle = 0;
     plane.brakes = false;
     plane.onGround = true;
+    seedSpeeds();
     say(current.floats
       ? `${spawn.name}. Idling on the step — open the throttle and she'll come up onto the floats.`
       : `${spawn.name}. ${current.name} has wheels, not floats. This is as far as it goes.`);
@@ -2108,6 +2171,7 @@ function resetPlane(inAir = false) {
     plane.throttle = 0.7;
     plane.brakes = false;
     plane.onGround = false;
+    seedSpeeds();
     say(current.glider
       ? `Off the tow at ${Math.round(plane.pos.y * FT).toLocaleString()} feet. Find rising air — look for it over sunlit ground.`
       : `${spawn.name}. ${Math.round(plane.pos.y * FT).toLocaleString()} feet, ${Math.round(v * KT)} knots.`);
@@ -2120,8 +2184,25 @@ function resetPlane(inAir = false) {
     plane.throttle = 0;
     plane.brakes = true;
     plane.onGround = true;
+    seedSpeeds();
     say(`${f.name}. ${f.len} m of runway, brakes on. ${current.name}.`);
   }
+}
+
+/* Everything that moves the throttle goes through here, so the readout, the lever and the
+   aria value can never disagree with the engine. */
+function setThrottle(v) {
+  plane.throttle = clamp(v, 0, 1);
+}
+
+/* Airspeed and ground speed are derived in step(), so a fresh spawn leaves them showing the
+   previous flight until a frame has run. Seeding them from the velocity we just set keeps the
+   state coherent the instant you appear — the HUD, the tutorial's speed conditions and the
+   autopilot all read these. */
+function seedSpeeds() {
+  const w = windAt(plane.pos, windClock);
+  plane.gs = plane.vel.length();
+  plane.ias = Math.hypot(plane.vel.x - w.x, plane.vel.y - w.y, plane.vel.z - w.z);
 }
 
 const axisF = new THREE.Vector3();
@@ -2137,7 +2218,29 @@ const density = (alt) => 1.225 * Math.exp(-Math.max(0, alt) / 8500);
 /* The air is not still. A steady wind with gusts on top means a crosswind landing is a real
    piece of flying, and it is why ground speed and airspeed stop agreeing with each other.
    Thermals rise off sunlit low ground — the whole point of the glider. */
-const weather = { dirDeg: 250, speed: 6, gust: 2.5, thermals: 1 };
+const weather = { dirDeg: 350, speed: 3.2, gust: 1.2, thermals: 1 };
+
+/* Four weather states you can pick in pre-flight. The default is a light breeze almost straight
+   down runway 36, because the old default — eleven knots at ninety degrees to it — is near a
+   light aircraft's demonstrated crosswind limit and made every first take-off a fight. */
+const WEATHERS = [
+  { id: "calm", name: "Calm", dirDeg: 350, speed: 1.0, gust: 0.3, thermals: 0.6,
+    blurb: "Barely a breath. Everything lands where you point it." },
+  { id: "light", name: "Light breeze", dirDeg: 350, speed: 3.2, gust: 1.2, thermals: 1,
+    blurb: "Six knots almost straight down runway 36. Enough to notice, not enough to fight." },
+  { id: "breezy", name: "Crosswind", dirDeg: 285, speed: 6.0, gust: 2.2, thermals: 1.2,
+    blurb: "Twelve knots across the main runway. You will need rudder to keep it straight." },
+  { id: "gusty", name: "Gusty", dirDeg: 250, speed: 8.5, gust: 4.5, thermals: 1.6,
+    blurb: "Seventeen knots, gusting, and off the side. Hard work, and the best soaring." },
+];
+let weatherPick = WEATHERS[1];
+function setWeather(w) {
+  weatherPick = w;
+  weather.dirDeg = w.dirDeg;
+  weather.speed = w.speed;
+  weather.gust = w.gust;
+  weather.thermals = w.thermals;
+}
 const windVec = new THREE.Vector3();
 let windClock = 0;
 
@@ -2224,9 +2327,13 @@ function step(dt) {
   // ---- moments, as angular accelerations ----
   const authority = clamp(q / 700, 0, 2.0);
   const pitchCmd = clamp(input.pitch + plane.trim, -1, 1);
+  /* On the ground the tyres resist the fin's attempt to weathervane you into the crosswind.
+     At full strength the nose swung forty degrees off the centreline on its own; a quarter
+     leaves the pull you have to correct with rudder without it running away from you. */
+  const weathercock = plane.onGround ? 0.25 : 1;
   const angAcc = new THREE.Vector3(
     (pitchCmd * air.pitchPower - alpha * air.pitchStab - plane.omega.x * air.pitchDamp) * authority,
-    (-input.yaw * air.yawPower - beta * air.yawStab - plane.omega.y * air.yawDamp) * authority,
+    (-input.yaw * air.yawPower - beta * air.yawStab * weathercock - plane.omega.y * air.yawDamp) * authority,
     (-input.roll * air.rollPower - plane.omega.z * air.rollDamp) * authority,
   );
   // in a stall the surfaces go slack and a wing drops
@@ -2243,14 +2350,39 @@ function step(dt) {
   const onRunway = !!pavement;
   const wheelY = plane.pos.y - gearHeight;
 
-  // rolling friction and steering use last step's contact; the constraint below re-decides it
+  /* Rolling friction and steering use last step's contact; the constraint below re-decides it.
+
+     A wheel rolls freely one way and grips hard the other, and that distinction is the whole
+     reason an aircraft tracks down a runway at all. Treating friction as a single force opposing
+     the total ground velocity — which is what this did — left nothing resisting sideways slide,
+     so a crosswind walked you off the tarmac with the wheels pointed straight ahead. */
   if (plane.onGround) {
+    const fwd2d = tmp.set(axisF.x, 0, axisF.z);
+    if (fwd2d.lengthSq() < 1e-6) fwd2d.set(0, 0, -1);
+    fwd2d.normalize();
+    const right2d = tmp2.set(-fwd2d.z, 0, fwd2d.x);       // 90 degrees right of the nose
+    const vAlong = plane.vel.x * fwd2d.x + plane.vel.z * fwd2d.z;
+    const vSide = plane.vel.x * right2d.x + plane.vel.z * right2d.z;
+    const stopIn = (v) => Math.abs(v) * air.mass / Math.max(dt, 0.001);   // force to null v this step
+
+    // along the wheels: free-running unless you brake
     const rolling = plane.brakes ? 0.45 : 0.022;
-    const friction = rolling * air.mass * G;
-    const ground2d = tmp2.set(plane.vel.x, 0, plane.vel.z);
-    const gs = ground2d.length();
-    if (gs > 0.05) forces.addScaledVector(ground2d.normalize(), -Math.min(friction, gs * air.mass / Math.max(dt, 0.001)));
+    if (Math.abs(vAlong) > 0.05) {
+      forces.addScaledVector(fwd2d, -Math.sign(vAlong) * Math.min(rolling * air.mass * G, stopIn(vAlong)));
+    }
+
+    // across the wheels: grip. Tarmac holds hard, grass and sand let go sooner, and floats on
+    // water barely hold at all — which is what makes a water landing feel like one.
+    const onWater = surfaceAt(plane.pos.x, plane.pos.z) <= SEA + 0.4;
+    const grip = onWater ? 0.18 : onRunway ? 0.85 : 0.6;
+    forces.addScaledVector(right2d, -Math.sign(vSide) * Math.min(grip * air.mass * G, stopIn(vSide)));
+
+    // the tyres also resist the fin trying to weathervane you into the crosswind. Some of that
+    // is left in on purpose — keeping straight with the rudder is the point of a crosswind.
+    plane.omega.y *= Math.exp(-dt * (onWater ? 1.2 : 4.5));
+
     // nosewheel steering, strongest when slow
+    const gs = Math.hypot(plane.vel.x, plane.vel.z);
     if (gs > 0.4) {
       const steer = input.yaw * clamp(1 - gs / 40, 0.12, 1) * 0.8;
       const yawQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -steer * dt * 1.6);
@@ -2286,13 +2418,16 @@ function step(dt) {
     const gentle = current.rough ? 0.55 : 0.35;        // how level it has to be
     const sinkLimit = current.rough ? 6.0 : current.floats ? 3.4 : 4.4;
 
-    // where you are allowed to put it down depends on what you are flying
-    const goodPlace = onWater ? !!current.floats : onRunway || !!current.rough;
+    // where you are allowed to put it down depends on what you are flying and how rough the
+    // ground is, not simply on whether you hit the tarmac
+    const rough = groundRoughness(plane.pos.x, plane.pos.z);
+    const smoothEnough = rough < (current.rough ? 0.18 : 0.075);   // about 4 degrees
+    const goodPlace = onWater ? !!current.floats : onRunway || smoothEnough;
     if (onWater && !current.floats) return crash("You went into the sea.");
     if (!plane.gearDown && speed > 8 && !current.floats) return crash("Gear up. That was expensive.");
     if (speed > 12 && (vy < -sinkLimit || bank > gentle || nose < -0.28 || (!goodPlace && speed > 24))) {
       return crash(vy < -sinkLimit ? "Hard landing — the gear let go."
-        : !goodPlace ? "You put it down off the field."
+        : !goodPlace ? "That ground was too rough to put it down on."
         : "A wingtip caught the ground.");
     }
     const rate = Math.round(-vy * 196.85);
@@ -2303,7 +2438,7 @@ function step(dt) {
     plane.score = { rate, offCentre: Math.round(offCentre), speed: Math.round(speed * KT), onRunway, where: pavement?.name };
     say(onRunway
       ? `${pavement.name} · ${rate} fpm · ${grade(rate, offCentre)}`
-      : "Down in one piece, but that wasn't the runway.");
+      : `Down in one piece at ${rate} fpm — but that wasn't the runway.`);
   }
   plane.onGround = touching;
 
@@ -2407,6 +2542,8 @@ const hud = {
   mapDot: document.getElementById("map-dot"),
   mapPlane: document.getElementById("map-plane"),
   mapLabel: document.getElementById("map-label"),
+  thrKnob: document.getElementById("i-thr-knob"),
+  thrLever: document.getElementById("thr-lever"),
   trim: document.getElementById("i-trim"),
   ap: document.getElementById("i-ap"),
   wind: document.getElementById("i-wind"),
@@ -2422,14 +2559,17 @@ function say(text) {
 }
 
 function updateHUD(dt) {
-  const kts = (plane.ias ?? plane.vel.length()) * KT;
+  const kts = plane.ias * KT;
   hud.spd.textContent = Math.round(kts);
   hud.alt.textContent = Math.round(plane.pos.y * FT).toLocaleString();
   hud.vsi.textContent = `${plane.vel.y > 0 ? "+" : ""}${Math.round(plane.vel.y * 196.85)}`;
   const hdgDeg = (THREE.MathUtils.radToDeg(heading()) + 360) % 360;
   hud.hdg.textContent = String(Math.round(hdgDeg)).padStart(3, "0");
-  hud.thr.textContent = `${Math.round(plane.throttle * 100)}%`;
+  const thrPct = Math.round(plane.throttle * 100);
+  hud.thr.textContent = `${thrPct}%`;
   hud.thrBar.style.height = `${plane.throttle * 100}%`;
+  hud.thrKnob.style.bottom = `calc(${plane.throttle * 100}% - 1.5px)`;
+  hud.thrLever.setAttribute("aria-valuenow", thrPct);
   hud.gforce.textContent = plane.gForce.toFixed(1);
   hud.flaps.textContent = plane.flaps === 0 ? "UP" : plane.flaps === 0.5 ? "10°" : "30°";
   hud.gear.textContent = plane.gearDown ? "DOWN" : "UP";
@@ -2486,6 +2626,18 @@ addEventListener("keydown", (e) => {
   if (e.repeat) return;
   keys.add(e.key.toLowerCase());
   const k = e.key.toLowerCase();
+  /* A tap is a step and a hold is a sweep. Before this the throttle only moved while a key
+     was down, at a rate that worked out to about one per cent per tap — which is why it felt
+     like the throttle did nothing. */
+  if (k === "shift" || k === "=" || k === "+") setThrottle(plane.throttle + 0.05);
+  if (k === "control" || k === "-" || k === "_") setThrottle(plane.throttle - 0.05);
+  if (k >= "1" && k <= "9") setThrottle((k.charCodeAt(0) - 48) / 10);
+  if (k === "0") setThrottle(1);
+  if (k === "\\") { plane.trim = 0; say("Trim neutral."); }
+  if (k === "v") {
+    setWeather(WEATHERS[(WEATHERS.indexOf(weatherPick) + 1) % WEATHERS.length]);
+    say(`${weatherPick.name} — ${Math.round(weather.speed * KT)} knots from ${Math.round(weather.dirDeg)}°.`);
+  }
   if (k === "g") { plane.gearDown = !plane.gearDown; say(plane.gearDown ? "Gear down." : "Gear up."); }
   if (k === "f") { plane.flaps = plane.flaps === 0 ? 0.5 : plane.flaps === 0.5 ? 1 : 0; say(`Flaps ${plane.flaps === 0 ? "up" : plane.flaps === 0.5 ? "10°" : "30°"}.`); }
   if (k === "b") { plane.brakes = !plane.brakes; say(plane.brakes ? "Brakes on." : "Brakes off."); }
@@ -2509,7 +2661,7 @@ addEventListener("keydown", (e) => {
         : "Autopilot off.");
     }
   }
-  if (k === "0") { plane.trim = 0; say("Trim neutral."); }
+
   if (k === "k") { tutorial.on ? stopTutorial("Tutorial stopped.") : startTutorial(); }
 });
 addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
@@ -2528,11 +2680,9 @@ function readInput(dt) {
   if (held("q")) target.yaw = -1;
   if (held("e")) target.yaw = 1;
 
-  if (held("shift", "=", "+")) plane.throttle = clamp(plane.throttle + dt * 0.55, 0, 1);
-  if (held("control", "-", "_")) plane.throttle = clamp(plane.throttle - dt * 0.55, 0, 1);
-  if (keys.has("1")) plane.throttle = 0;
-  if (keys.has("2")) plane.throttle = 0.5;
-  if (keys.has("3")) plane.throttle = 1;
+  // holding sweeps it; the keydown above already gave you the first step
+  if (held("shift", "=", "+")) setThrottle(plane.throttle + dt * 0.75);
+  if (held("control", "-", "_")) setThrottle(plane.throttle - dt * 0.75);
 
   // touch stick overrides the keyboard when it's in use
   if (stick.active) { target.pitch = -stick.y; target.roll = stick.x; }
@@ -2583,11 +2733,30 @@ const throttleEl = document.getElementById("throttle");
 function throttleFromTouch(e) {
   const t = e.touches[0] || e.changedTouches[0];
   const r = throttleEl.getBoundingClientRect();
-  plane.throttle = clamp(1 - (t.clientY - r.top) / r.height, 0, 1);
+  setThrottle(1 - (t.clientY - r.top) / r.height);
   e.preventDefault();
 }
 throttleEl.addEventListener("touchstart", throttleFromTouch, { passive: false });
 throttleEl.addEventListener("touchmove", throttleFromTouch, { passive: false });
+
+/* The gauge in the engine panel is a lever you can grab — pointer events, so a mouse and a
+   finger both work — for when you want 43 per cent and not a round number. */
+const lever = document.getElementById("thr-lever");
+function leverSet(e) {
+  const r = lever.getBoundingClientRect();
+  setThrottle(1 - (e.clientY - r.top) / r.height);
+}
+lever.addEventListener("pointerdown", (e) => {
+  lever.setPointerCapture(e.pointerId);
+  leverSet(e);
+  e.preventDefault();
+});
+lever.addEventListener("pointermove", (e) => { if (lever.hasPointerCapture(e.pointerId)) leverSet(e); });
+lever.addEventListener("wheel", (e) => { setThrottle(plane.throttle - Math.sign(e.deltaY) * 0.05); e.preventDefault(); }, { passive: false });
+lever.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowUp" || e.key === "ArrowRight") { setThrottle(plane.throttle + 0.05); e.preventDefault(); }
+  if (e.key === "ArrowDown" || e.key === "ArrowLeft") { setThrottle(plane.throttle - 0.05); e.preventDefault(); }
+});
 
 for (const btn of document.querySelectorAll("[data-key]")) {
   btn.addEventListener("click", () => {
@@ -2642,8 +2811,8 @@ const LESSONS = [
   },
   {
     title: "Full power",
-    say: "Now open the throttle all the way — press 3, or hold Shift.",
-    hint: "3",
+    say: "Now open the throttle all the way — press 0 for full power, or hold Shift.",
+    hint: "0",
     done: () => plane.throttle > 0.9,
   },
   {
@@ -2667,7 +2836,7 @@ const LESSONS = [
   {
     title: "Level off",
     say: "Ease the nose down until the vertical speed settles near zero, and bring the power back to about half.",
-    hint: "↓ then 2",
+    hint: "↓ then 5",
     done: () => Math.abs(plane.vel.y) < 2.2 && plane.throttle < 0.75 && plane.pos.y * FT > 1200,
   },
   {
@@ -2688,7 +2857,7 @@ const LESSONS = [
   {
     title: "Find a stall",
     say: "Close the throttle and hold the nose up. Listen for the stall warning — then lower the nose to fly again.",
-    hint: "1, then ↑",
+    hint: "Ctrl, then ↑",
     done: () => tutorial.stalled && !plane.stall && plane.pos.y > FIELD_ELEV + 120,
     watch: () => { if (plane.stall) tutorial.stalled = true; },
   },
@@ -2884,6 +3053,17 @@ function renderPlacesList() {
   document.getElementById("pf-place-name").textContent = pending.spawn.name;
 }
 
+/* How much of the wind is across the runway you picked, rather than down it. Thirteen knots
+   across is about as much as a light aircraft is tested to, so it is worth saying out loud. */
+function crosswindNote(f) {
+  const from = THREE.MathUtils.degToRad(weather.dirDeg);
+  // the wind blows *from* dirDeg; the runway points along f.hdg
+  const across = Math.abs(Math.sin(from - f.hdg)) * weather.speed * KT;
+  const down = Math.cos(from - f.hdg) * weather.speed * KT;
+  if (across < 3) return `wind almost straight down it at ${Math.round(Math.abs(down))} kt.`;
+  return `${Math.round(across)} kt of crosswind${across > 12 ? " — that is a lot" : ""}.`;
+}
+
 /* The summary is the part that saves you a wasted flight: it says plainly whether the aircraft
    you picked can get out of the field you picked, from the same runway lengths the world was
    built from. */
@@ -2929,13 +3109,28 @@ function renderSummary() {
     el.textContent = `${a.name} off ${runwayName(f)} at ${f.name}. About ${a.needs.toLocaleString()} m needed, ${f.len.toLocaleString()} available — tight.`;
     el.className = "pf-summary tight";
   } else {
-    el.textContent = `${a.name} off ${runwayName(f)} at ${f.name}: ${f.len.toLocaleString()} m of ${(SURFACE[f.kind] || "asphalt").toLowerCase()}, ${Math.round(f.elev * FT).toLocaleString()} ft above the sea.`;
+    el.textContent = `${a.name} off ${runwayName(f)} at ${f.name}: ${f.len.toLocaleString()} m of ${(SURFACE[f.kind] || "asphalt").toLowerCase()}, ${crosswindNote(f)}`;
+  }
+}
+
+function renderWeather() {
+  const box = document.getElementById("pf-weather");
+  box.innerHTML = "";
+  for (const w of WEATHERS) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = w === weatherPick ? "on" : "";
+    b.textContent = `${w.name} · ${Math.round(w.speed * KT)} kt`;
+    b.title = w.blurb;
+    b.addEventListener("click", () => { setWeather(w); renderPreflight(); });
+    box.append(b);
   }
 }
 
 function renderPreflight() {
   renderPlanes();
   renderPlacesList();
+  renderWeather();
   renderSummary();
   for (const b of preflightEl.querySelectorAll("[data-pf-tab]")) {
     b.classList.toggle("on", b.dataset.pfTab === pending.tab);
@@ -3117,6 +3312,6 @@ function nearestField() {
 }
 
 window.__sim = { plane, input, air, step, groundAt, seabedAt, surfaceAt, pavementAt, resetPlane, heading, keys, CAMS, KT, FT,
-  AIRCRAFT, selectAircraft, applyTime, SPAWNS, FIELDS, weather, autopilot, LESSONS, tutorial, startTutorial, updateTutorial, windAt,
+  AIRCRAFT, selectAircraft, applyTime, SPAWNS, FIELDS, weather, WEATHERS, setWeather, autopilot, LESSONS, tutorial, startTutorial, updateTutorial, windAt,
   pending, openPreflight, renderPreflight, nearestField,
   setSpawn: (i) => { spawn = SPAWNS[i]; } };

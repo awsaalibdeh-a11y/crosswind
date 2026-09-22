@@ -213,6 +213,21 @@ html, body {
   overflow: hidden;
 }
 .throttle-fill { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(180deg, var(--lit), #2f8fb5); transition: height 0.12s linear; }
+.throttle-gauge { cursor: ns-resize; touch-action: none; }
+.throttle-gauge:focus-visible { outline: 2px solid var(--lit); outline-offset: 2px; }
+.throttle-ticks { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between; padding: 2px 0; pointer-events: none; }
+.throttle-ticks i { display: block; height: 1px; background: rgba(232, 244, 251, 0.28); }
+.throttle-knob {
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--ink);
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.7);
+  transition: bottom 0.12s linear;
+  pointer-events: none;
+}
 .panel dl { margin: 0; display: grid; gap: 2px; }
 .panel dl div { display: flex; justify-content: space-between; gap: 14px; }
 .panel dt { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(232, 244, 251, 0.5); }
@@ -464,6 +479,25 @@ html, body {
   padding: 1px 5px;
   vertical-align: 2px;
 }
+.pf-weather { flex: none; display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.pf-weather-label { font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(232, 244, 251, 0.55); }
+.pf-weather-btns { display: flex; gap: 6px; flex: 1; flex-wrap: wrap; }
+.pf-weather-btns button {
+  flex: 1 1 auto;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--edge);
+  background: transparent;
+  color: rgba(232, 244, 251, 0.72);
+  font-family: var(--disp);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pf-weather-btns button.on { border-color: var(--lit); background: rgba(127, 231, 255, 0.16); color: var(--ink); }
+
 .pf-summary {
   flex: none;
   margin: 0 0 12px !important;

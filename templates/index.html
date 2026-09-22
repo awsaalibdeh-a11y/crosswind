@@ -71,7 +71,13 @@
 
     <!-- bottom left: engine and configuration -->
     <div class="panel">
-      <div class="throttle-gauge"><div class="throttle-fill" id="i-thr-bar"></div></div>
+      <!-- a lever you can actually grab: click or drag anywhere on it to set the power -->
+      <div class="throttle-gauge" id="thr-lever" role="slider" aria-label="Throttle"
+           aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0">
+        <div class="throttle-fill" id="i-thr-bar"></div>
+        <div class="throttle-ticks"><i></i><i></i><i></i><i></i></div>
+        <div class="throttle-knob" id="i-thr-knob"></div>
+      </div>
       <dl>
         <div><dt>Throttle</dt><dd id="i-thr">0%</dd></div>
         <div><dt>Flaps</dt><dd id="i-flaps">UP</dd></div>
@@ -169,6 +175,11 @@
       </section>
     </div>
 
+    <div class="pf-weather">
+      <span class="pf-weather-label">Weather</span>
+      <div class="pf-weather-btns" id="pf-weather"></div>
+    </div>
+
     <p class="pf-summary" id="pf-summary"></p>
     <div class="card-btns">
       <button type="button" class="primary" id="pf-fly">Fly</button>
@@ -184,14 +195,17 @@
       <div><dt>W / S <em>or</em> ↑ ↓</dt><dd>Pitch</dd></div>
       <div><dt>A / D <em>or</em> ← →</dt><dd>Roll</dd></div>
       <div><dt>Q / E</dt><dd>Rudder · steering on the ground</dd></div>
-      <div><dt>Shift / Ctrl</dt><dd>Throttle · 1 2 3 for idle, half, full</dd></div>
+      <div><dt>Shift / Ctrl</dt><dd>Throttle · tap for 5%, hold to sweep</dd></div>
+      <div><dt>1 … 9 · 0</dt><dd>Set power directly — 10% a step, 0 is full</dd></div>
+      <div><dt>Drag the lever</dt><dd>Bottom left, for any setting you like</dd></div>
       <div><dt>G · F · B</dt><dd>Gear · flaps · brakes</dd></div>
       <div><dt>C</dt><dd>Change view</dd></div>
       <div><dt>R · T</dt><dd>Restart on the runway · in the air</dd></div>
       <div><dt>M</dt><dd>Pre-flight — choose aircraft and airfield · <em>N</em> next aircraft</dd></div>
       <div><dt>J</dt><dd>Same screen, opened on the airfield list</dd></div>
       <div><dt>K</dt><dd>Start or stop the tutorial</dd></div>
-      <div><dt>P</dt><dd>Autopilot · <em>[ ]</em> trim · <em>0</em> trim neutral</dd></div>
+      <div><dt>P</dt><dd>Autopilot · <em>[ ]</em> trim · <em>\</em> trim neutral</dd></div>
+      <div><dt>V</dt><dd>Weather — calm, breeze, crosswind, gusty</dd></div>
       <div><dt>L</dt><dd>Time of day — morning to dusk</dd></div>
       <div><dt>H</dt><dd>Show or hide this</dd></div>
     </dl>
