@@ -20,12 +20,25 @@ const KT = 1.94384;         // m/s to knots
 const FT = 3.28084;         // m to feet
 
 /* Places you can start. Each strip is levelled into the terrain when the island is built. */
+/* Eight of them. Position, heading and elevation were picked by scanning the generated
+   heightmap for flat ground and then sweeping the runway heading to find the line that needs
+   the least cut and fill — which is roughly how you would site a real one. */
 const FIELDS = [
-  { id: "intl", name: "Isla Verde Intl", x: 0, z: 0, elev: 62, len: 2600, w: 46, hdg: 0,
+  { id: "intl", name: "Isla Verde Intl", kind: "intl", icao: "IVIV", x: 0, z: 0, elev: 62, len: 2600, w: 46, hdg: 0,
     blurb: "The main field. Long tarmac, a tower, hangars and a PAPI on the approach." },
-  { id: "ridge", name: "Ridge Strip", x: 2950, z: -3950, elev: 1180, len: 760, w: 24, hdg: 0.42,
+  { id: "puerto", name: "Puerto Sur", kind: "regional", icao: "IVPS", x: -2000, z: 5200, elev: 109, len: 2000, w: 42, hdg: 1.13,
+    blurb: "The city's own airport, a mile inland from the towers. Long enough for anything in the hangar." },
+  { id: "oeste", name: "Punta Oeste", kind: "strip", icao: "IVPO", x: -5200, z: 200, elev: 114, len: 1500, w: 34, hdg: 3.05,
+    blurb: "A flat coastal field on the west shore. The lighthouse stands off the approach end." },
+  { id: "bahia", name: "Bahía Este", kind: "strip", icao: "IVBE", x: 5600, z: 3400, elev: 67, len: 1250, w: 30, hdg: 2.53,
+    blurb: "Low ground on the east coast, sheltered from the range. The easiest field after the main one." },
+  { id: "norte", name: "Alto Norte", kind: "grass", icao: "IVAN", x: 3200, z: -6000, elev: 236, len: 700, w: 26, hdg: 2.09,
+    blurb: "A grass field in the northern foothills. No tarmac, no lights, and trees off both ends." },
+  { id: "ridge", name: "Ridge Strip", kind: "strip", icao: "IVRS", x: 2950, z: -3950, elev: 1180, len: 760, w: 24, hdg: 0.42,
     blurb: "A shelf cut into the mountains at 3,900 ft. Short, high and unforgiving." },
-  { id: "cala", name: "Cala Beach", x: -4600, z: 2900, elev: 16, len: 980, w: 28, hdg: 1.15,
+  { id: "condor", name: "Cóndor Shelf", kind: "grass", icao: "IVCS", x: 600, z: -4600, elev: 1445, len: 520, w: 22, hdg: 0.79,
+    blurb: "520 m of gravel terraced into the range at 4,700 ft. The hardest place to land on the island." },
+  { id: "cala", name: "Cala Beach", kind: "beach", icao: "IVCB", x: -4600, z: 2900, elev: 16, len: 980, w: 28, hdg: 1.15,
     blurb: "A sand strip along the south-west shore. Sea at both ends." },
 ];
 
@@ -132,6 +145,9 @@ function terrainHeight(x, z) {
   const d = Math.hypot(x, z) / (WORLD / 2);
   h *= clamp(1.32 - Math.pow(d, 3.1) * 1.45, 0, 1);
   h -= 55 * clamp((d - 0.7) * 3.2, 0, 1);
+  // past the shore the seabed keeps going down — this is what the water shader reads to know
+  // where the shallows end, and it is why the sea is not one flat colour
+  h -= 150 * clamp((d - 0.84) * 2.8, 0, 1);
   return h;
 }
 
@@ -152,7 +168,10 @@ function buildHeightmap() {
 function flattenPad(f) {
   const half = WORLD / 2;
   const innerAlong = f.len / 2 + 220, innerAcross = f.w / 2 + 220;
-  const outerAlong = innerAlong + 1300, outerAcross = innerAcross + 1100;
+  // the blend out to natural ground scales with the strip: a short mountain shelf gets steep
+  // sides and a small footprint, a 2.6 km runway gets a broad plain around it
+  const blend = clamp(f.len * 0.55, 380, 1300);
+  const outerAlong = innerAlong + blend, outerAcross = innerAcross + blend * 0.85;
   const c = Math.cos(f.hdg), sn = Math.sin(f.hdg);
   const reach = Math.max(outerAlong, outerAcross);
   for (let j = 0; j < GRID; j++) {
@@ -185,6 +204,22 @@ function groundAt(x, z) {
   const h01 = heights[(j + 1) * GRID + i];
   const h11 = heights[(j + 1) * GRID + i + 1];
   return Math.max(SEA, lerp(lerp(h00, h10, tx), lerp(h01, h11, tx), tz));
+}
+
+/* The same sample without the clamp: below the waterline this is the seabed, which is negative.
+   Only the terrain mesh and the water's depth map want this — everything else wants ground you
+   can stand on, which is what groundAt gives. */
+function seabedAt(x, z) {
+  const half = WORLD / 2;
+  const fx = clamp((x + half) / WORLD, 0, 0.99999) * (GRID - 1);
+  const fz = clamp((z + half) / WORLD, 0, 0.99999) * (GRID - 1);
+  const i = Math.floor(fx), j = Math.floor(fz);
+  const tx = fx - i, tz = fz - j;
+  const h00 = heights[j * GRID + i];
+  const h10 = heights[j * GRID + i + 1];
+  const h01 = heights[(j + 1) * GRID + i];
+  const h11 = heights[(j + 1) * GRID + i + 1];
+  return lerp(lerp(h00, h10, tx), lerp(h01, h11, tx), tz);
 }
 
 /* Somewhere you are allowed to put the wheels down: any of the strips, or the carrier deck.
@@ -232,10 +267,10 @@ const camera = new THREE.PerspectiveCamera(62, 1, 0.6, 70000);
    Moving it moves all four together, which is what makes a time of day feel like a time of
    day rather than a filter. */
 const TIMES = [
-  { id: "morning", label: "Morning", dir: [-0.55, 0.42, 0.72], light: 0xffe8c8, power: 2.5, amb: 0.95, top: 0x2c6cc4, mid: 0x9cc7ee, haze: 0xf2e6d2, fog: 0xdce6ee },
-  { id: "noon", label: "Midday", dir: [-0.28, 0.92, 0.27], light: 0xfff6e8, power: 3.0, amb: 1.1, top: 0x1f5fc0, mid: 0x8dc0ee, haze: 0xe9f2fb, fog: 0xd4e4f2 },
-  { id: "golden", label: "Golden hour", dir: [-0.86, 0.16, 0.48], light: 0xffb56a, power: 2.6, amb: 0.8, top: 0x2a4f9e, mid: 0xb08bc8, haze: 0xffbf86, fog: 0xf0c49a },
-  { id: "dusk", label: "Dusk", dir: [-0.93, 0.05, 0.36], light: 0xff8f54, power: 1.7, amb: 0.6, top: 0x1b2f6e, mid: 0x7a6bab, haze: 0xff9b6a, fog: 0xc9a2a0 },
+  { id: "morning", label: "Morning", dir: [-0.55, 0.42, 0.72], light: 0xffe8c8, power: 2.5, amb: 0.95, top: 0x2c6cc4, mid: 0x9cc7ee, haze: 0xf2e6d2, fog: 0xdce6ee, windows: 0 },
+  { id: "noon", label: "Midday", dir: [-0.28, 0.92, 0.27], light: 0xfff6e8, power: 3.0, amb: 1.1, top: 0x1f5fc0, mid: 0x8dc0ee, haze: 0xe9f2fb, fog: 0xd4e4f2, windows: 0 },
+  { id: "golden", label: "Golden hour", dir: [-0.86, 0.16, 0.48], light: 0xffb56a, power: 2.6, amb: 0.8, top: 0x2a4f9e, mid: 0xb08bc8, haze: 0xffbf86, fog: 0xf0c49a, windows: 0.28 },
+  { id: "dusk", label: "Dusk", dir: [-0.93, 0.05, 0.36], light: 0xff8f54, power: 1.7, amb: 0.6, top: 0x1b2f6e, mid: 0x7a6bab, haze: 0xff9b6a, fog: 0xc9a2a0, windows: 0.5 },
 ];
 let timeIndex = 0;
 const sunDir = new THREE.Vector3(...TIMES[0].dir).normalize();
@@ -325,9 +360,110 @@ function applyTime(i) {
   water.material.uniforms.uSun.value.copy(dir);
   water.material.uniforms.uSky.value.set(t.mid).convertSRGBToLinear();
   water.material.uniforms.uHaze.value.set(t.haze).convertSRGBToLinear();
+  for (const m of cityLights) m.emissiveIntensity = t.windows || 0;
   refreshEnvironment();
   say(`${t.label}.`);
 }
+
+/* ---------- textures, drawn rather than downloaded ----------
+   No image files are allowed, so every surface texture here is painted onto a canvas at load:
+   speckle for ground, streaks and joins for tarmac, a grid of lit windows for towers. Cheap to
+   make, and it is the difference between a surface and a flat colour. */
+
+function speckleTexture(size, base, spots, density = 2600, radius = 2.4) {
+  const c = document.createElement("canvas");
+  c.width = c.height = size;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, size, size);
+  for (let i = 0; i < density; i++) {
+    ctx.fillStyle = spots[Math.floor(Math.random() * spots.length)];
+    ctx.globalAlpha = 0.18 + Math.random() * 0.5;
+    const r = radius * (0.4 + Math.random());
+    ctx.beginPath();
+    ctx.arc(Math.random() * size, Math.random() * size, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
+function asphaltTexture() {
+  const size = 256;
+  const c = document.createElement("canvas");
+  c.width = c.height = size;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#3a3d42";
+  ctx.fillRect(0, 0, size, size);
+  for (let i = 0; i < 4200; i++) {
+    ctx.fillStyle = Math.random() < 0.5 ? "#32353a" : "#45484e";
+    ctx.globalAlpha = 0.3 + Math.random() * 0.5;
+    ctx.fillRect(Math.random() * size, Math.random() * size, 1 + Math.random() * 2, 1 + Math.random() * 2);
+  }
+  // the transverse joins every few metres that make tarmac read as tarmac
+  ctx.globalAlpha = 0.5;
+  ctx.strokeStyle = "#2b2e33";
+  ctx.lineWidth = 1.5;
+  for (let y = 0; y < size; y += 64) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(size, y);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
+/* A facade, and — for a tower — the matching emissive map. The two are generated from the same
+   random draw so that the squares that glow at night are exactly the squares that are lit in
+   the daytime texture. The emissive map is black everywhere else, which is what stops a tower
+   turning into a solid gold block after dark. */
+function windowTexture(tower) {
+  const size = 128;
+  const mk = () => {
+    const c = document.createElement("canvas");
+    c.width = c.height = size;
+    return [c, c.getContext("2d")];
+  };
+  const [c, ctx] = mk();
+  const [e, ectx] = mk();
+  ctx.fillStyle = tower ? "#2f3846" : "#8d95a0";
+  ctx.fillRect(0, 0, size, size);
+  ectx.fillStyle = "#000000";
+  ectx.fillRect(0, 0, size, size);
+  for (let y = 5; y < size - 5; y += 11) {
+    for (let x = 5; x < size - 5; x += 10) {
+      const on = tower && Math.random() < 0.28;
+      ctx.fillStyle = on ? "#ffe3a8" : tower ? "#1d242e" : "#6f7884";
+      ctx.fillRect(x, y, 6, 7);
+      if (on) { ectx.fillStyle = "#ffdca0"; ectx.fillRect(x, y, 6, 7); }
+    }
+  }
+  const wrap = (canvas) => {
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  };
+  const tex = wrap(c);
+  tex.emissive = tower ? wrap(e) : null;    // carried alongside so callers can pair them
+  return tex;
+}
+
+const TEX = {
+  ground: speckleTexture(256, "#7f8a63", ["#5f7043", "#93a06a", "#6b7a4e", "#a8ae86"], 3000, 2.6),
+  asphalt: asphaltTexture(),
+  sand: speckleTexture(256, "#dccfa2", ["#cbbd8d", "#e9dcb4", "#bfae7e"], 2200, 2.2),
+  rock: speckleTexture(256, "#6f675d", ["#5b544c", "#837a6e", "#4a443d"], 2600, 3.0),
+};
 
 /* ---------- terrain ---------- */
 
@@ -353,6 +489,7 @@ function buildTerrain() {
   const rock = new THREE.Color(0x6f675d);
   const rockDark = new THREE.Color(0x4a443d);
   const snow = new THREE.Color(0xf7f9fc);
+  const seabed = new THREE.Color(0x46565c);
   const c = new THREE.Color();
   const band = new THREE.Color();
 
@@ -363,7 +500,7 @@ function buildTerrain() {
     for (let i = 0; i < GRID; i++) {
       const k = j * GRID + i;
       const x = -half + i * step;
-      const h = Math.max(SEA, heights[k]);
+      const h = heights[k];          // raw: under the sea this goes negative and keeps sinking
       pos[k * 3 + 1] = h;
 
       // analytic normal from the four neighbours
@@ -381,6 +518,7 @@ function buildTerrain() {
       c.copy(grass).lerp(grassDry, patch);
       c.lerp(forest, clamp((1 - patch) * 0.85 - slope * 0.35, 0, 0.75));
       if (h < 9) c.lerp(sand, clamp((9 - h) / 8, 0, 1));
+      if (h < 0) c.lerp(seabed, clamp(-h / 40, 0, 1));   // under the water it darkens
 
       // strata: rock banded by height, so cliffs read as layers rather than flat grey
       band.copy(rock).lerp(rockDark, clamp(Math.sin(h * 0.035) * 0.5 + 0.5, 0, 1) * 0.8 + grain * 0.2);
@@ -399,8 +537,13 @@ function buildTerrain() {
   geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
   geo.computeBoundingSphere();
 
+  // one detail texture tiled across the island, multiplied over the vertex colours: close up it
+  // is grain, far away it disappears into the colour
+  const detail = TEX.ground.clone();
+  detail.needsUpdate = true;
+  detail.repeat.set(WORLD / 26, WORLD / 26);
   const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
-    vertexColors: true, roughness: 0.95, metalness: 0.0,
+    vertexColors: true, map: detail, roughness: 0.95, metalness: 0.0,
   }));
   mesh.receiveShadow = true;
   mesh.matrixAutoUpdate = false;
@@ -413,20 +556,42 @@ function buildTerrain() {
 
 // Gerstner-ish waves in the vertex shader, sky reflection and a sun glitter path in the
 // fragment shader. The mesh follows the camera so the detail is always where you are.
+/* A depth map of the whole island, baked once from the heightmap. The water shader reads it to
+   know how deep it is under any point — which is what gives shallows their colour and puts a
+   line of foam exactly on the waterline instead of somewhere near it. */
+function buildDepthTexture(size = 512) {
+  const data = new Uint8Array(size * size);
+  for (let j = 0; j < size; j++) {
+    for (let i = 0; i < size; i++) {
+      const x = -WORLD / 2 + (i / (size - 1)) * WORLD;
+      const z = -WORLD / 2 + (j / (size - 1)) * WORLD;
+      const depth = clamp(-seabedAt(x, z) / 60, 0, 1);   // 0 at the shoreline, 1 at 60 m down
+      data[j * size + i] = Math.round(depth * 255);
+    }
+  }
+  const tex = new THREE.DataTexture(data, size, size, THREE.RedFormat);
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.minFilter = tex.magFilter = THREE.LinearFilter;
+  tex.needsUpdate = true;
+  return tex;
+}
+
 function buildSea() {
-  const geo = new THREE.PlaneGeometry(26000, 26000, 220, 220);
+  const geo = new THREE.PlaneGeometry(30000, 30000, 240, 240);
   geo.rotateX(-Math.PI / 2);
   const mat = new THREE.ShaderMaterial({
-    transparent: true,
     uniforms: {
       uTime: { value: 0 },
       uSun: { value: new THREE.Vector3(0, 1, 0) },
       uSky: { value: new THREE.Color(0x9cc7ee).convertSRGBToLinear() },
       uHaze: { value: new THREE.Color(0xf2e6d2).convertSRGBToLinear() },
-      uDeep: { value: new THREE.Color(0x0e3550).convertSRGBToLinear() },
-      uShallow: { value: new THREE.Color(0x2d7f9e).convertSRGBToLinear() },
+      uDeep: { value: new THREE.Color(0x0b2f4a).convertSRGBToLinear() },
+      uShallow: { value: new THREE.Color(0x2fa7b8).convertSRGBToLinear() },
+      uFoam: { value: new THREE.Color(0xeaf6ff).convertSRGBToLinear() },
       uFogColor: { value: new THREE.Color(0xdce6ee) },
       uFogDensity: { value: 0.000035 },
+      uDepth: { value: null },
+      uWorld: { value: WORLD },
     },
     vertexShader: `
       uniform float uTime;
@@ -443,51 +608,100 @@ function buildSea() {
         vec3 p = position;
         vec2 xz = (modelMatrix * vec4(position, 1.0)).xz;
         vec3 n1, n2, n3;
-        p += wave(xz, normalize(vec2(1.0, 0.35)), 120.0, 1.5, 9.0, n1);
-        p += wave(xz, normalize(vec2(-0.4, 1.0)), 61.0, 0.75, 7.0, n2);
-        p += wave(xz, normalize(vec2(0.7, -0.8)), 27.0, 0.28, 5.0, n3);
+        p += wave(xz, normalize(vec2(1.0, 0.35)), 118.0, 1.25, 8.0, n1);
+        p += wave(xz, normalize(vec2(-0.4, 1.0)), 57.0, 0.62, 6.5, n2);
+        p += wave(xz, normalize(vec2(0.7, -0.8)), 24.0, 0.22, 4.5, n3);
         vNormal = normalize(vec3(0.0, 1.0, 0.0) + n1 + n2 + n3);
         vec4 world = modelMatrix * vec4(p, 1.0);
         vWorld = world.xyz;
         gl_Position = projectionMatrix * viewMatrix * world;
       }`,
     fragmentShader: `
-      uniform vec3 uSun, uSky, uHaze, uDeep, uShallow, uFogColor;
-      uniform float uFogDensity;
+      uniform vec3 uSun, uSky, uHaze, uDeep, uShallow, uFoam, uFogColor;
+      uniform float uFogDensity, uWorld;
+      uniform sampler2D uDepth;
       varying vec3 vWorld;
       varying vec3 vNormal;
       void main() {
+        vec2 uv = vWorld.xz / uWorld + 0.5;
+        float depth = texture2D(uDepth, uv).r;
+        // outside the baked map we are miles offshore, so treat it as deep
+        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) depth = 1.0;
+
         vec3 n = normalize(vNormal);
         vec3 v = normalize(cameraPosition - vWorld);
         vec3 s = normalize(uSun);
         float fres = pow(1.0 - clamp(dot(n, v), 0.0, 1.0), 3.5);
-        vec3 body = mix(uDeep, uShallow, clamp(dot(n, v) * 0.9, 0.0, 1.0));
+
+        vec3 body = mix(uShallow, uDeep, smoothstep(0.02, 0.45, depth));
         vec3 skyCol = mix(uSky, uHaze, 0.35);
-        vec3 col = mix(body, skyCol, clamp(fres * 1.15, 0.0, 0.92));
-        // the glitter path: a tight specular smeared along the wave normals
+        vec3 col = mix(body, skyCol, clamp(fres * 1.1, 0.0, 0.88));
+
+        // surf: a band of foam that sits on the waterline and breathes with the swell
+        float swell = sin(vWorld.x * 0.045 + vWorld.z * 0.03) * 0.5 + 0.5;
+        float surf = smoothstep(0.075, 0.0, depth) * (0.45 + swell * 0.55);
+        col = mix(col, uFoam, clamp(surf, 0.0, 0.9));
+
         vec3 h = normalize(s + v);
-        float spec = pow(clamp(dot(n, h), 0.0, 1.0), 220.0);
-        float sheen = pow(clamp(dot(n, h), 0.0, 1.0), 18.0) * 0.12;
-        col += vec3(1.0, 0.93, 0.8) * (spec * 2.4 + sheen);
+        float spec = pow(clamp(dot(n, h), 0.0, 1.0), 200.0);
+        float sheen = pow(clamp(dot(n, h), 0.0, 1.0), 16.0) * 0.1;
+        col += vec3(1.0, 0.93, 0.8) * (spec * 2.2 + sheen);
+
         float d = length(cameraPosition - vWorld);
         float fog = 1.0 - exp(-pow(d * uFogDensity, 2.0));
         col = mix(col, uFogColor, clamp(fog, 0.0, 1.0));
-        gl_FragColor = vec4(col, 0.97);
+        gl_FragColor = vec4(col, 1.0);
       }`,
   });
+  mat.uniforms.uDepth.value = buildDepthTexture();
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.y = SEA - 0.3;
-  mesh.renderOrder = -1;
+  mesh.position.y = SEA;
   scene.add(mesh);
   return mesh;
 }
 
 /* ---------- the airfields ---------- */
 
-const asphalt = new THREE.MeshStandardMaterial({ color: 0x35373b, roughness: 0.82, metalness: 0.05 });
+const asphaltTex = TEX.asphalt.clone();
+asphaltTex.needsUpdate = true;
+asphaltTex.repeat.set(2, 90);
+const asphalt = new THREE.MeshStandardMaterial({ color: 0xffffff, map: asphaltTex, roughness: 0.86, metalness: 0.04 });
 const paintMat = new THREE.MeshBasicMaterial({ color: 0xf2f2f2 });
-const grassMat = new THREE.MeshStandardMaterial({ color: 0x6d7a4e, roughness: 0.95 });
-const sandMat = new THREE.MeshStandardMaterial({ color: 0xded0a2, roughness: 0.96 });
+const grassTex = TEX.ground.clone();
+grassTex.needsUpdate = true;
+grassTex.repeat.set(12, 60);
+const grassMat = new THREE.MeshStandardMaterial({ color: 0xa9b487, map: grassTex, roughness: 0.96 });
+const sandTex = TEX.sand.clone();
+sandTex.needsUpdate = true;
+sandTex.repeat.set(8, 40);
+const sandMat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: sandTex, roughness: 0.96 });
+const gravelTex = TEX.rock.clone();
+gravelTex.needsUpdate = true;
+gravelTex.repeat.set(4, 30);
+const gravelMat = new THREE.MeshStandardMaterial({ color: 0xb6ad9d, map: gravelTex, roughness: 0.98 });
+const mownTex = TEX.ground.clone();
+mownTex.needsUpdate = true;
+mownTex.repeat.set(5, 26);
+const mownMat = new THREE.MeshStandardMaterial({ color: 0x9fb072, map: mownTex, roughness: 0.97 });
+
+/* The number painted on the threshold is the runway's magnetic heading rounded to ten degrees
+   and divided by ten — so a strip pointing north is "36" from one end and "18" from the other.
+   Drawing it means the sign you line up with is the same number the map calls it. */
+function runwayNumber(deg) {
+  const n = ((Math.round(deg / 10) + 35) % 36) + 1;
+  const c = document.createElement("canvas");
+  c.width = 128; c.height = 128;
+  const ctx = c.getContext("2d");
+  ctx.clearRect(0, 0, 128, 128);
+  ctx.fillStyle = "#f2f2f2";
+  ctx.font = "bold 84px 'Barlow Condensed', Arial, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(String(n).padStart(2, "0"), 64, 66);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
 
 // One builder for every strip: the big international field gets the full furniture, the
 // outstations get a strip, some lights and whatever suits where they are.
@@ -495,21 +709,44 @@ function buildAirfield(f) {
   const group = new THREE.Group();
   const y = f.elev;
 
+  const big = f.kind === "intl" || f.kind === "regional";
   const apron = new THREE.Mesh(
-    new THREE.PlaneGeometry(f.w + (f.id === "intl" ? 260 : 90), f.len + (f.id === "intl" ? 340 : 160)),
-    f.id === "cala" ? sandMat : grassMat,
+    new THREE.PlaneGeometry(f.w + (f.kind === "intl" ? 260 : big ? 170 : 90), f.len + (f.kind === "intl" ? 340 : 160)),
+    f.kind === "beach" ? sandMat : grassMat,
   );
   apron.rotation.x = -Math.PI / 2;
   apron.position.y = 0.05;
   group.add(apron);
 
-  const strip = new THREE.Mesh(new THREE.PlaneGeometry(f.w, f.len), f.id === "cala" ? sandMat.clone() : asphalt);
-  if (f.id === "cala") strip.material.color.set(0xcdb98a);
+  // each kind of field gets its own surface, and the surface is most of what tells you what
+  // sort of place you have just arrived at
+  const surfaceMat = f.kind === "beach" ? sandMat.clone()
+    : f.kind === "grass" ? (f.id === "condor" ? gravelMat.clone() : mownMat.clone())
+      : asphalt;
+  const strip = new THREE.Mesh(new THREE.PlaneGeometry(f.w, f.len), surfaceMat);
+  if (f.kind === "beach") strip.material.color.set(0xcdb98a);
   strip.rotation.x = -Math.PI / 2;
   strip.position.y = 0.12;
   group.add(strip);
 
-  for (let d = -f.len / 2 + 60; d < f.len / 2 - 60; d += 60) {
+  // the threshold numbers, one at each end, each reading the right way up as you land on it
+  const degs = (THREE.MathUtils.radToDeg(f.hdg) + 360) % 360;
+  for (const end of [-1, 1]) {
+    const size = Math.min(26, f.w * 0.62);
+    const num = new THREE.Mesh(
+      new THREE.PlaneGeometry(size, size),
+      new THREE.MeshBasicMaterial({ map: runwayNumber(end > 0 ? degs : degs + 180), transparent: true }),
+    );
+    num.rotation.x = -Math.PI / 2;
+    // the plane's local +Y lands on world -Z once it is laid flat, so the number at the +Z end
+    // already reads correctly to someone approaching it; the far end is the one that needs the
+    // half turn
+    num.rotation.z = end > 0 ? 0 : Math.PI;
+    num.position.set(0, 0.22, end * (f.len / 2 - 60));
+    group.add(num);
+  }
+
+  for (let d = -f.len / 2 + 130; d < f.len / 2 - 130; d += 60) {
     const dash = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 30), paintMat);
     dash.rotation.x = -Math.PI / 2;
     dash.position.set(0, 0.2, d);
@@ -536,7 +773,7 @@ function buildAirfield(f) {
     }
   }
 
-  if (f.id === "intl") {
+  if (f.kind === "intl") {
     const taxi = new THREE.Mesh(new THREE.PlaneGeometry(18, f.len * 0.8), asphalt);
     taxi.rotation.x = -Math.PI / 2;
     taxi.position.set(-110, 0.1, 0);
@@ -572,6 +809,35 @@ function buildAirfield(f) {
       hangar.position.set(-190, 0, -60 + i * 90);
       group.add(hangar);
     }
+  } else if (f.kind === "regional") {
+    // a regional field: one terminal block with a glass frontage, a strip of apron and three
+    // stands with the taxi line painted in
+    const term = new THREE.Mesh(new THREE.BoxGeometry(24, 11, 130),
+      new THREE.MeshStandardMaterial({ color: 0xded8cc, roughness: 0.82 }));
+    term.position.set(-f.w / 2 - 68, 5.5, -120);
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(1.2, 7, 126),
+      new THREE.MeshStandardMaterial({ map: windowTexture(false), roughness: 0.16, metalness: 0.55 }));
+    glass.position.set(-f.w / 2 - 55.6, 5.4, -120);
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(27, 1, 134),
+      new THREE.MeshStandardMaterial({ color: 0x8d8579, roughness: 0.9 }));
+    roof.position.set(-f.w / 2 - 68, 11.4, -120);
+    const ramp = new THREE.Mesh(new THREE.PlaneGeometry(74, 220), asphalt);
+    ramp.rotation.x = -Math.PI / 2;
+    ramp.position.set(-f.w / 2 - 20, 0.1, -120);
+    group.add(term, glass, roof, ramp);
+    for (let k = 0; k < 3; k++) {
+      const line = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 44), new THREE.MeshBasicMaterial({ color: 0xf0c53a }));
+      line.rotation.x = -Math.PI / 2;
+      line.position.set(-f.w / 2 - 34, 0.18, -180 + k * 56);
+      group.add(line);
+    }
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 11, 8), new THREE.MeshStandardMaterial({ color: 0xdddddd }));
+    pole.position.set(f.w / 2 + 14, 5.5, 0);
+    const sock = new THREE.Mesh(new THREE.ConeGeometry(1.6, 5.4, 10, 1, true),
+      new THREE.MeshStandardMaterial({ color: 0xff7a1a, side: THREE.DoubleSide, roughness: 0.9 }));
+    sock.rotation.z = -Math.PI / 2;
+    sock.position.set(f.w / 2 + 17, 10.2, 0);
+    group.add(pole, sock);
   } else {
     // outstations get a hut and a windsock instead of a terminal
     const hut = new THREE.Mesh(new THREE.BoxGeometry(14, 6, 9), new THREE.MeshStandardMaterial({ color: 0xc8c2b4, roughness: 0.85 }));
@@ -597,10 +863,20 @@ function buildAirfield(f) {
 /* ---------- landmarks ---------- */
 
 // A small port city on the south coast: blocks of towers, a few with lit windows.
+const cityLights = [];
 function buildCity(cx, cz) {
   const group = new THREE.Group();
-  const wall = new THREE.MeshStandardMaterial({ color: 0xbfb6a8, roughness: 0.82 });
-  const glassWall = new THREE.MeshStandardMaterial({ color: 0x7fa8c8, roughness: 0.18, metalness: 0.7 });
+  // two facade textures, tiled per building by its size, so a tower reads as forty floors of
+  // windows rather than a blue box
+  const lowTex = windowTexture(false);
+  const towerTex = windowTexture(true);
+  const wall = new THREE.MeshStandardMaterial({ color: 0xcfc6b6, map: lowTex, roughness: 0.82 });
+  // the lit squares in the tower texture double as an emissive map, so at dusk the windows
+  // come on by themselves instead of the whole block going flat black
+  const glassWall = new THREE.MeshStandardMaterial({
+    color: 0x9fc4e0, map: towerTex, roughness: 0.18, metalness: 0.55,
+    emissive: 0xffffff, emissiveMap: towerTex.emissive, emissiveIntensity: 0,
+  });
   const roofMat = new THREE.MeshStandardMaterial({ color: 0x6b5e52, roughness: 0.9 });
   let built = 0;
   for (let i = 0; i < 260 && built < 170; i++) {
@@ -616,7 +892,20 @@ function buildCity(cx, cz) {
     const h = tall ? 40 + Math.random() * 90 : 8 + Math.random() * 16;
     const w = tall ? 14 + Math.random() * 12 : 12 + Math.random() * 16;
     const d = tall ? 14 + Math.random() * 12 : 12 + Math.random() * 16;
-    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), tall && Math.random() < 0.6 ? glassWall : wall);
+    const lit = tall && Math.random() < 0.6;
+    const mat = (lit ? glassWall : wall).clone();
+    mat.map = mat.map.clone();
+    mat.map.needsUpdate = true;
+    mat.map.repeat.set(Math.max(1, Math.round(w / 9)), Math.max(1, Math.round(h / 7)));
+    if (lit) {
+      // the emissive map has to be tiled exactly like the colour map or the glow drifts off
+      // the windows it belongs to
+      mat.emissiveMap = towerTex.emissive.clone();
+      mat.emissiveMap.needsUpdate = true;
+      mat.emissiveMap.repeat.copy(mat.map.repeat);
+      cityLights.push(mat);
+    }
+    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
     b.position.set(x, g + h / 2, z);
     b.rotation.y = Math.round(Math.random() * 4) * Math.PI / 8;
     b.castShadow = b.receiveShadow = true;
@@ -638,7 +927,10 @@ function buildCarrier(cx, cz, hdg = 0.3) {
   const group = new THREE.Group();
   const hull = new THREE.Mesh(new THREE.BoxGeometry(70, 16, 300), new THREE.MeshStandardMaterial({ color: 0x4a5058, roughness: 0.7, metalness: 0.4 }));
   hull.position.y = 4;
-  const deck = new THREE.Mesh(new THREE.BoxGeometry(76, 2.4, 310), new THREE.MeshStandardMaterial({ color: 0x33363b, roughness: 0.85 }));
+  const deckTex = TEX.asphalt.clone();
+  deckTex.needsUpdate = true;
+  deckTex.repeat.set(3, 12);
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(76, 2.4, 310), new THREE.MeshStandardMaterial({ color: 0x9296a0, map: deckTex, roughness: 0.88 }));
   deck.position.y = 13;
   group.add(hull, deck);
 
@@ -1518,7 +1810,7 @@ function navLights(g, x, y, z) {
 
 const AIRCRAFT = [
   {
-    id: "skylark",
+    id: "skylark", needs: 300,
     name: "Skylark 172",
     blurb: "A high-wing trainer. Slow, forgiving and hard to frighten — start here.",
     spec: "Rotate 55 kt · Cruise 110 kt · 1.0 t",
@@ -1534,7 +1826,7 @@ const AIRCRAFT = [
     },
   },
   {
-    id: "sprint",
+    id: "sprint", needs: 360,
     name: "Sprint S2",
     blurb: "A low-wing aerobat with a big engine and a short wing. It rolls like a barrel.",
     spec: "Rotate 60 kt · Cruise 150 kt · 1.1 t",
@@ -1550,7 +1842,7 @@ const AIRCRAFT = [
     },
   },
   {
-    id: "falcon",
+    id: "falcon", needs: 900,
     name: "Falcon J-7",
     blurb: "A single-seat jet. Enormous thrust, a wing that needs speed, and gear you must raise.",
     spec: "Rotate 140 kt · Cruise 420 kt · 9.5 t",
@@ -1566,7 +1858,7 @@ const AIRCRAFT = [
     },
   },
   {
-    id: "mustang",
+    id: "mustang", needs: 700,
     name: "Comet P-51",
     blurb: "A wartime fighter. Enormous prop, a tailwheel that wants to swap ends, and real speed.",
     spec: "Rotate 95 kt · Cruise 300 kt · 4.3 t",
@@ -1582,7 +1874,7 @@ const AIRCRAFT = [
     },
   },
   {
-    id: "bush",
+    id: "bush", needs: 180,
     name: "Kodiak STOL",
     blurb: "Tundra tyres and a wing full of slats. Lands almost anywhere, including a hillside.",
     spec: "Rotate 38 kt · Cruise 95 kt · 1.4 t",
@@ -1598,7 +1890,7 @@ const AIRCRAFT = [
     },
   },
   {
-    id: "sea",
+    id: "sea", needs: 280,
     name: "Lagoon 18",
     blurb: "A floatplane. The whole sea is your runway — and the lagoons, if you can find them.",
     spec: "Rotate 52 kt · Cruise 100 kt · 1.2 t · lands on water",
@@ -1614,7 +1906,7 @@ const AIRCRAFT = [
     },
   },
   {
-    id: "glider",
+    id: "glider", needs: 260,
     name: "Albatross G4",
     blurb: "No engine. Eighteen metres of wing, and only the rising air to keep you up.",
     spec: "Glides 38:1 · Stalls at 34 kt · no engine",
@@ -1630,7 +1922,7 @@ const AIRCRAFT = [
     },
   },
   {
-    id: "atlas",
+    id: "atlas", needs: 2000,
     name: "Atlas 340",
     blurb: "A twin-engine airliner. Heavy, stately, and utterly unforgiving of a late flare.",
     spec: "Rotate 145 kt · Cruise 280 kt · 62 t",
@@ -1736,27 +2028,34 @@ function flyAutopilot(dt) {
   return true;
 }
 
-/* Where you start. Three strips you can sit on, and four places you can simply appear —
-   the point being that the island is worth arriving in from somewhere other than one runway. */
+/* Every strip is somewhere you can start, and the list builds itself from FIELDS so adding an
+   airfield adds it to the picker too. After them come the places you simply appear in mid-air. */
+const SURFACE = { intl: "Asphalt", regional: "Asphalt", strip: "Asphalt", grass: "Grass", beach: "Sand" };
+const byId = (id) => FIELDS.find((f) => f.id === id);
+
 const SPAWNS = [
-  { id: "intl", name: "Isla Verde Intl", field: FIELDS[0],
-    blurb: "The main field, holding on runway 36 with 2,600 m ahead of you." },
-  { id: "ridge", name: "Ridge Strip", field: FIELDS[1],
-    blurb: "3,900 ft up on a mountain shelf. 760 m of tarmac and a drop off the end." },
-  { id: "cala", name: "Cala Beach", field: FIELDS[2],
-    blurb: "A sand strip on the south-west shore, sea at both ends." },
-  { id: "final", name: "On final for 36", field: FIELDS[0],
+  ...FIELDS.map((f) => ({ id: f.id, name: f.name, field: f, blurb: f.blurb })),
+  { id: "final", name: "On final for 36", field: byId("intl"),
     air: { pos: [0, FIELD_ELEV + 520, 5200], hdg: 0, speed: 58 },
     blurb: "Three miles out at 1,700 ft, lined up. All you have to do is not bend it." },
-  { id: "alps", name: "Over the mountains", field: FIELDS[1],
+  { id: "alps", name: "Over the mountains", field: byId("ridge"),
     air: { pos: [2600, 2900, -2400], hdg: 2.5, speed: 75 },
     blurb: "9,500 ft above the range, with the peaks in every direction." },
-  { id: "carrier", name: "Carrier approach", field: FIELDS[0],
+  { id: "carrier", name: "Carrier approach", field: byId("intl"),
     air: { pos: [-6200, 300, -2600], hdg: Math.PI + 0.22, speed: 62 },
     blurb: "Two miles behind the ship at 1,000 ft. The deck is 300 m long and moving." },
-  { id: "city", name: "Over the city", field: FIELDS[0],
+  { id: "city", name: "Over the city", field: byId("puerto"),
     air: { pos: [-3100, 620, 5600], hdg: Math.PI, speed: 65 },
-    blurb: "Low over the port, towers either side." },
+    blurb: "Low over the port, towers either side — Puerto Sur is two miles north." },
+  { id: "water", name: "West bay, on the water", field: byId("oeste"),
+    water: { pos: [-7400, 1800], hdg: 1.0 },
+    blurb: "Floating in a sheltered bay off the west coast, engine idling. Only the floatplane can get off again." },
+  { id: "harbour", name: "Puerto Sur harbour", field: byId("puerto"),
+    water: { pos: [-3250, 6450], hdg: 5.6 },
+    blurb: "On the water in front of the city, looking out past the breakwater. A floatplane's front door." },
+  { id: "high", name: "Ten thousand feet", field: byId("intl"),
+    air: { pos: [-1200, 3050, -800], hdg: 0.6, speed: 90 },
+    blurb: "High over the middle of the island with the whole map in one look. Go anywhere." },
 ];
 let spawn = SPAWNS[0];
 
@@ -1772,6 +2071,22 @@ function resetPlane(inAir = false) {
   document.getElementById("crash").hidden = true;
 
   const f = spawn.field || FIELDS[0];
+
+  // Sitting on the water is neither a runway start nor an air start: put it on the surface at
+  // rest. Dropping it from the air scored the splashdown as a crash landing, which it was.
+  if (spawn.water && !current.glider) {
+    const w = spawn.water;
+    plane.pos.set(w.pos[0], SEA + 0.05 + current.gearHeight, w.pos[1]);
+    plane.quat.setFromEuler(new THREE.Euler(0, w.hdg, 0, "YXZ"));
+    plane.vel.set(0, 0, 0);
+    plane.throttle = 0;
+    plane.brakes = false;
+    plane.onGround = true;
+    say(current.floats
+      ? `${spawn.name}. Idling on the step — open the throttle and she'll come up onto the floats.`
+      : `${spawn.name}. ${current.name} has wheels, not floats. This is as far as it goes.`);
+    return;
+  }
   // nothing without an engine is going anywhere from a standing start — a glider is released
   // from a tow at two thousand feet over the field it chose
   const airborne = inAir || !!spawn.air || !!current.glider;
@@ -1993,6 +2308,10 @@ function step(dt) {
   plane.onGround = touching;
 
   if (touching) {
+    // Water only holds you up if you have floats. This used to be checked only at the instant
+    // of touchdown, so anything that *started* on the water — a wheeled aircraft at a water
+    // spawn — simply drove across the sea and took off from it.
+    if (groundNow <= SEA + 0.4 && !current.floats) return crash("You went into the sea.");
     plane.pos.y = floor;
     if (plane.vel.y < 0) plane.vel.y = 0;
     const e = new THREE.Euler().setFromQuaternion(plane.quat, "YXZ");
@@ -2087,6 +2406,7 @@ const hud = {
   msg: document.getElementById("msg"),
   mapDot: document.getElementById("map-dot"),
   mapPlane: document.getElementById("map-plane"),
+  mapLabel: document.getElementById("map-label"),
   trim: document.getElementById("i-trim"),
   ap: document.getElementById("i-ap"),
   wind: document.getElementById("i-wind"),
@@ -2147,6 +2467,10 @@ function updateHUD(dt) {
   const mx = (plane.pos.x / WORLD + 0.5) * 128;
   const mz = (plane.pos.z / WORLD + 0.5) * 128;
   hud.mapPlane.setAttribute("transform", `translate(${mx} ${mz}) rotate(${THREE.MathUtils.radToDeg(heading())})`);
+  const near = nearestField();
+  hud.mapLabel.textContent = near.dist < 1400
+    ? `${near.field.name} · ${runwayName(near.field)}`
+    : `${near.field.name} · ${(near.dist / 1852).toFixed(1)} nm`;
 
   if (msgTimer > 0) {
     msgTimer -= dt;
@@ -2170,8 +2494,8 @@ addEventListener("keydown", (e) => {
   if (k === "t") { document.getElementById("crash").hidden = true; resetPlane(true); }
   if (k === "h") document.getElementById("help").hidden = !document.getElementById("help").hidden;
   if (k === "n") selectAircraft(AIRCRAFT.indexOf(current) + 1, !plane.onGround);
-  if (k === "m") { const el = document.getElementById("hangar"); el.hidden = !el.hidden; document.getElementById("help").hidden = true; document.getElementById("places").hidden = true; renderHangar(); }
-  if (k === "j") { const el = document.getElementById("places"); el.hidden = !el.hidden; document.getElementById("help").hidden = true; document.getElementById("hangar").hidden = true; renderPlaces(); }
+  if (k === "m") togglePreflight("planes");
+  if (k === "j") togglePreflight("ground");
   if (k === "l") applyTime(timeIndex + 1);
   if (k === "a" && e.shiftKey) { /* handled below as autopilot */ }
   if (k === "p") {
@@ -2398,8 +2722,7 @@ function startTutorial() {
   tutorial.step = 0;
   tutorial.stalled = false;
   document.getElementById("help").hidden = true;
-  document.getElementById("hangar").hidden = true;
-  document.getElementById("places").hidden = true;
+  document.getElementById("preflight").hidden = true;
   spawn = SPAWNS[0];
   selectAircraft(0, false);
   renderLesson();
@@ -2491,64 +2814,165 @@ function selectAircraft(index, inAir = false) {
 selectAircraft(0);
 applyTime(0);
 
-/* The hangar: pick an aircraft, see what you are letting yourself in for. */
-const hangarEl = document.getElementById("hangar");
-function renderHangar() {
+/* ================= the pre-flight screen =================
+   One card, two halves. Choosing an aircraft or an airfield only marks it as *pending* — the
+   simulator is not touched until Fly is pressed. That is the whole point: before this, clicking
+   anything in either list respawned you on the spot, so picking a plane threw away the airfield
+   you had just chosen, and picking an airfield threw away the plane. */
+
+const preflightEl = document.getElementById("preflight");
+const pending = { plane: 0, spawn: SPAWNS[0], tab: "ground" };
+
+const groundSpawns = () => SPAWNS.filter((sp) => !sp.air);
+const airSpawns = () => SPAWNS.filter((sp) => sp.air);
+
+// the runway you would be pointed down, in the usual two-digit form
+function runwayName(f) {
+  const deg = (THREE.MathUtils.radToDeg(f.hdg) + 360) % 360;
+  return `RWY ${String(((Math.round(deg / 10) + 35) % 36) + 1).padStart(2, "0")}`;
+}
+
+function pfCard(name, spec, blurb, on, badge) {
+  const el = document.createElement("button");
+  el.type = "button";
+  el.className = `plane-card${on ? " on" : ""}`;
+  const n = document.createElement("strong");
+  n.textContent = name;
+  if (badge) {
+    const b = document.createElement("em");
+    b.className = "pf-badge";
+    b.textContent = badge;
+    n.append(" ", b);
+  }
+  const sp = document.createElement("span");
+  sp.className = "plane-spec";
+  sp.textContent = spec;
+  const bl = document.createElement("span");
+  bl.className = "plane-blurb";
+  bl.textContent = blurb;
+  el.append(n, sp, bl);
+  return el;
+}
+
+function renderPlanes() {
   const list = document.getElementById("plane-list");
   list.innerHTML = "";
   AIRCRAFT.forEach((a, i) => {
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = `plane-card${a === current ? " on" : ""}`;
-    card.innerHTML = "";
-    const name = document.createElement("strong");
-    name.textContent = a.name;
-    const spec = document.createElement("span");
-    spec.className = "plane-spec";
-    spec.textContent = a.spec;
-    const blurb = document.createElement("span");
-    blurb.className = "plane-blurb";
-    blurb.textContent = a.blurb;
-    card.append(name, spec, blurb);
-    card.addEventListener("click", () => {
-      selectAircraft(i, !plane.onGround);
-      hangarEl.hidden = true;
-      renderHangar();
-    });
-    list.append(card);
+    const el = pfCard(a.name, a.spec, a.blurb, i === pending.plane,
+      a.glider ? "no engine" : a.floats ? "water" : a.rough ? "STOL" : null);
+    el.addEventListener("click", () => { pending.plane = i; renderPreflight(); });
+    list.append(el);
   });
+  document.getElementById("pf-plane-name").textContent = AIRCRAFT[pending.plane].name;
 }
-renderHangar();
-document.getElementById("hangar-close").addEventListener("click", () => { hangarEl.hidden = true; });
 
-const placesEl = document.getElementById("places");
-function renderPlaces() {
+function renderPlacesList() {
   const list = document.getElementById("place-list");
   list.innerHTML = "";
-  SPAWNS.forEach((sp) => {
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = `plane-card${sp === spawn ? " on" : ""}`;
-    const name = document.createElement("strong");
-    name.textContent = sp.name;
-    const spec = document.createElement("span");
-    spec.className = "plane-spec";
-    spec.textContent = sp.air ? "Airborne start" : `Runway start · ${sp.field.len} m · ${Math.round(sp.field.elev * FT)} ft`;
-    const blurb = document.createElement("span");
-    blurb.className = "plane-blurb";
-    blurb.textContent = sp.blurb;
-    card.append(name, spec, blurb);
-    card.addEventListener("click", () => {
-      spawn = sp;
-      resetPlane(!!sp.air);
-      placesEl.hidden = true;
-      renderPlaces();
-    });
-    list.append(card);
-  });
+  for (const sp of pending.tab === "air" ? airSpawns() : groundSpawns()) {
+    const f = sp.field;
+    const spec = sp.air
+      ? `Airborne · ${Math.round(sp.air.pos[1] * FT).toLocaleString()} ft · ${Math.round(sp.air.speed * KT)} kt`
+      : sp.water
+        ? `Open water · sea level · near ${f.icao}`
+        : `${SURFACE[f.kind] || "Asphalt"} · ${f.len.toLocaleString()} m · ${Math.round(f.elev * FT).toLocaleString()} ft · ${f.icao}`;
+    const el = pfCard(sp.name, spec, sp.blurb, sp === pending.spawn,
+      sp.air ? null : sp.water ? "floats" : runwayName(f));
+    el.addEventListener("click", () => { pending.spawn = sp; renderPreflight(); });
+    list.append(el);
+  }
+  document.getElementById("pf-place-name").textContent = pending.spawn.name;
 }
-renderPlaces();
-document.getElementById("places-close").addEventListener("click", () => { placesEl.hidden = true; });
+
+/* The summary is the part that saves you a wasted flight: it says plainly whether the aircraft
+   you picked can get out of the field you picked, from the same runway lengths the world was
+   built from. */
+function renderSummary() {
+  const a = AIRCRAFT[pending.plane];
+  const sp = pending.spawn;
+  const el = document.getElementById("pf-summary");
+  const fly = document.getElementById("pf-fly");
+  el.className = "pf-summary";
+  fly.textContent = "Fly";
+
+  if (sp.water) {
+    if (a.glider) {
+      el.textContent = `${a.name} cannot float, so it starts on a tow above ${sp.field.name} instead.`;
+    } else if (!a.floats) {
+      el.textContent = `${a.name} has wheels, not floats — it will sit on the water and go nowhere. The Lagoon 18 is the one that flies from here.`;
+      el.className = "pf-summary warn";
+      fly.textContent = "Fly anyway";
+    } else {
+      el.textContent = `${a.name} on the water at ${sp.name.toLowerCase()}. Open the throttle and she comes up onto the step.`;
+    }
+    return;
+  }
+
+  if (sp.air) {
+    el.textContent = a.glider
+      ? `${a.name}, released high over ${sp.name.toLowerCase()}. No engine — find rising air.`
+      : `${a.name}, already flying: ${sp.name.toLowerCase()}.`;
+    return;
+  }
+
+  const f = sp.field;
+  if (a.glider) {
+    el.textContent = `${a.name} has no engine, so it starts on a tow above ${f.name} rather than on the runway.`;
+    return;
+  }
+  const margin = f.len - a.needs;
+  if (margin < 0) {
+    el.textContent = `${a.name} needs about ${a.needs.toLocaleString()} m. ${f.name} has ${f.len.toLocaleString()}. You can try, but it will not end on the tarmac.`;
+    el.className = "pf-summary warn";
+    fly.textContent = "Fly anyway";
+  } else if (margin < a.needs * 0.4) {
+    el.textContent = `${a.name} off ${runwayName(f)} at ${f.name}. About ${a.needs.toLocaleString()} m needed, ${f.len.toLocaleString()} available — tight.`;
+    el.className = "pf-summary tight";
+  } else {
+    el.textContent = `${a.name} off ${runwayName(f)} at ${f.name}: ${f.len.toLocaleString()} m of ${(SURFACE[f.kind] || "asphalt").toLowerCase()}, ${Math.round(f.elev * FT).toLocaleString()} ft above the sea.`;
+  }
+}
+
+function renderPreflight() {
+  renderPlanes();
+  renderPlacesList();
+  renderSummary();
+  for (const b of preflightEl.querySelectorAll("[data-pf-tab]")) {
+    b.classList.toggle("on", b.dataset.pfTab === pending.tab);
+  }
+}
+
+function openPreflight(focus) {
+  // open on what you are actually flying now, not on whatever was left pending last time
+  pending.plane = Math.max(0, AIRCRAFT.indexOf(current));
+  pending.spawn = spawn;
+  pending.tab = focus === "air" || (focus !== "ground" && pending.spawn.air) ? "air" : "ground";
+  renderPreflight();
+  preflightEl.hidden = false;
+  document.getElementById("help").hidden = true;
+  // the chosen card is often scrolled out of sight in a list of eight — bring both into view,
+  // but only on open, so it never fights you while you are browsing
+  for (const on of preflightEl.querySelectorAll(".plane-card.on")) {
+    on.scrollIntoView({ block: "nearest" });
+  }
+}
+
+function togglePreflight(focus) {
+  if (preflightEl.hidden) openPreflight(focus);
+  else preflightEl.hidden = true;
+}
+
+for (const b of preflightEl.querySelectorAll("[data-pf-tab]")) {
+  b.addEventListener("click", () => { pending.tab = b.dataset.pfTab; renderPreflight(); });
+}
+document.getElementById("pf-close").addEventListener("click", () => { preflightEl.hidden = true; });
+document.getElementById("pf-teach").addEventListener("click", () => { preflightEl.hidden = true; startTutorial(); });
+document.getElementById("pf-fly").addEventListener("click", () => {
+  preflightEl.hidden = true;
+  spawn = pending.spawn;                    // the place first: selectAircraft respawns, and
+  selectAircraft(pending.plane, false);     // resetPlane reads spawn.air to decide how
+});
+renderPreflight();
 
 function resize() {
   const w = innerWidth, h = innerHeight;
@@ -2631,6 +3055,68 @@ requestAnimationFrame(frame);
 
 /* A handle for testing the flight model without the renderer: the physics is deterministic and
    fixed-step, so it can be run headlessly and checked against real numbers. */
-window.__sim = { plane, input, air, step, groundAt, surfaceAt, pavementAt, resetPlane, heading, keys, CAMS, KT, FT,
+/* The minimap is painted from the heightmap rather than drawn by hand, so it shows the island
+   that actually exists — every bay, and every strip in the right place. */
+function paintMap() {
+  const size = 128;
+  const c = document.createElement("canvas");
+  c.width = c.height = size;
+  const ctx = c.getContext("2d");
+  const img = ctx.createImageData(size, size);
+  for (let j = 0; j < size; j++) {
+    for (let i = 0; i < size; i++) {
+      const x = -WORLD / 2 + (i / (size - 1)) * WORLD;
+      const z = -WORLD / 2 + (j / (size - 1)) * WORLD;
+      const h = seabedAt(x, z);
+      let r, g, b;
+      if (h <= 0) {
+        const t = clamp(-h / 120, 0, 1);                   // shallows pale, deep water dark
+        r = 26 - t * 12; g = 62 - t * 26; b = 92 - t * 34;
+      } else if (h < 1020) {
+        const t = clamp(h / 1020, 0, 1);
+        r = 46 + t * 92; g = 92 + t * 40; b = 44 + t * 28; // green shore up to brown highland
+      } else {
+        const t = clamp((h - 1020) / 500, 0, 1);
+        r = 138 + t * 100; g = 132 + t * 110; b = 72 + t * 150;   // snow
+      }
+      const k = (j * size + i) * 4;
+      img.data[k] = r; img.data[k + 1] = g; img.data[k + 2] = b; img.data[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  document.getElementById("map-img").setAttribute("href", c.toDataURL());
+
+  // every strip, drawn as a line lying along its real heading
+  const g = document.getElementById("map-fields");
+  const NS = "http://www.w3.org/2000/svg";
+  for (const f of FIELDS) {
+    const mx = (f.x / WORLD + 0.5) * 128;
+    const mz = (f.z / WORLD + 0.5) * 128;
+    const half = Math.max(2.2, (f.len / WORLD) * 128 * 2.4);
+    const line = document.createElementNS(NS, "line");
+    line.setAttribute("x1", (mx - Math.sin(f.hdg) * half).toFixed(2));
+    line.setAttribute("y1", (mz - Math.cos(f.hdg) * half).toFixed(2));
+    line.setAttribute("x2", (mx + Math.sin(f.hdg) * half).toFixed(2));
+    line.setAttribute("y2", (mz + Math.cos(f.hdg) * half).toFixed(2));
+    line.setAttribute("stroke", "#e8f4fb");
+    line.setAttribute("stroke-width", "1.6");
+    line.setAttribute("stroke-linecap", "round");
+    g.append(line);
+  }
+}
+paintMap();
+
+// which field you are nearest, so the label under the map is always useful
+function nearestField() {
+  let best = FIELDS[0], bd = Infinity;
+  for (const f of FIELDS) {
+    const d = Math.hypot(plane.pos.x - f.x, plane.pos.z - f.z);
+    if (d < bd) { bd = d; best = f; }
+  }
+  return { field: best, dist: bd };
+}
+
+window.__sim = { plane, input, air, step, groundAt, seabedAt, surfaceAt, pavementAt, resetPlane, heading, keys, CAMS, KT, FT,
   AIRCRAFT, selectAircraft, applyTime, SPAWNS, FIELDS, weather, autopilot, LESSONS, tutorial, startTutorial, updateTutorial, windAt,
+  pending, openPreflight, renderPreflight, nearestField,
   setSpawn: (i) => { spawn = SPAWNS[i]; } };

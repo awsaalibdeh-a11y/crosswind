@@ -87,15 +87,19 @@
     <!-- bottom right: map -->
     <div class="map">
       <svg viewBox="0 0 128 128" aria-label="Island map">
-        <rect x="0" y="0" width="128" height="128" rx="8" fill="#0d2233" />
-        <circle cx="64" cy="64" r="52" fill="#1d3a2a" />
-        <circle cx="76" cy="50" r="24" fill="#3c4a3a" />
-        <rect x="62.2" y="57" width="3.6" height="14" fill="#cfd6dd" rx="1" />
-        <g id="map-plane" transform="translate(64 64)">
-          <path d="M0,-5 L3.4,4 L0,2 L-3.4,4 Z" fill="#ffd23f" stroke="#0b1016" stroke-width="0.6" />
+        <defs><clipPath id="map-clip"><rect x="0" y="0" width="128" height="128" rx="8" /></clipPath></defs>
+        <g clip-path="url(#map-clip)">
+          <rect x="0" y="0" width="128" height="128" fill="#0d2233" />
+          <!-- painted from the same heightmap the terrain is built from -->
+          <image id="map-img" x="0" y="0" width="128" height="128" href="" />
+          <g id="map-fields"></g>
+          <g id="map-plane" transform="translate(64 64)">
+            <path d="M0,-5 L3.4,4 L0,2 L-3.4,4 Z" fill="#ffd23f" stroke="#0b1016" stroke-width="0.6" />
+          </g>
         </g>
+        <rect x="0.5" y="0.5" width="127" height="127" rx="8" fill="none" stroke="rgba(232,244,251,0.18)" />
       </svg>
-      <span class="map-label">Isla Verde · RWY 36</span>
+      <span class="map-label" id="map-label">Isla Verde · RWY 36</span>
     </div>
 
     <div class="lesson" id="lesson" hidden>
@@ -131,7 +135,7 @@
   <div class="card" id="lesson-done" hidden>
     <h2>First flight done</h2>
     <p>That was a full circuit: take-off, a turn, a stall and a recovery, an approach and a landing. Everything else on the island is a variation on it.</p>
-    <p>Eight aircraft in the hangar, seven places to start, and a carrier out west with a deck you can land on.</p>
+    <p>Eight aircraft, eight airfields and six places to simply appear — press <kbd>M</kbd> for the pre-flight screen. There is also a carrier out west with a deck you can land on.</p>
     <div class="card-btns"><button type="button" onclick="document.getElementById('lesson-done').hidden = true">Go flying</button></div>
   </div>
 
@@ -144,24 +148,38 @@
     </div>
   </div>
 
-  <div class="card hangar" id="hangar" hidden>
-    <h2>The hangar</h2>
-    <p>Eight aircraft, from a trainer to an airliner — and a glider with no engine at all.</p>
-    <div class="planes" id="plane-list"></div>
-    <div class="card-btns"><button type="button" id="hangar-close">Close</button></div>
-  </div>
+<!-- One screen for both halves of the decision. Nothing here touches the aircraft until
+       you press Fly, so you can change your mind as often as you like. -->
+  <div class="card preflight" id="preflight" hidden>
+    <h2>Pre-flight</h2>
+    <p class="pf-lead">Pick an aircraft and a place to start. Nothing moves until you press <strong>Fly</strong>.</p>
 
-  <div class="card hangar" id="places" hidden>
-    <h2>Where to start</h2>
-    <p>Three strips on the island, and four places to simply appear.</p>
-    <p class="help-lead">New here? Press <kbd>K</kbd> and I'll teach you to fly.</p>
-    <div class="planes" id="place-list"></div>
-    <div class="card-btns"><button type="button" id="places-close">Close</button></div>
+    <div class="pf-cols">
+      <section class="pf-col">
+        <header><h3>Aircraft</h3><span class="pf-chosen" id="pf-plane-name">—</span></header>
+        <div class="planes" id="plane-list"></div>
+      </section>
+      <section class="pf-col">
+        <header><h3>Start from</h3><span class="pf-chosen" id="pf-place-name">—</span></header>
+        <div class="pf-tabs">
+          <button type="button" class="on" data-pf-tab="ground">Airfields</button>
+          <button type="button" data-pf-tab="air">In the air</button>
+        </div>
+        <div class="planes" id="place-list"></div>
+      </section>
+    </div>
+
+    <p class="pf-summary" id="pf-summary"></p>
+    <div class="card-btns">
+      <button type="button" class="primary" id="pf-fly">Fly</button>
+      <button type="button" id="pf-teach">Teach me to fly</button>
+      <button type="button" id="pf-close">Cancel</button>
+    </div>
   </div>
 
   <div class="card help" id="help">
     <h2>Crosswind</h2>
-    <p class="help-lead">A light single on an island strip. New to this? Press <kbd>K</kbd> and I'll talk you through a whole circuit.</p>
+    <p class="help-lead">Eight aircraft, eight airfields, one island. New to this? Press <kbd>K</kbd> and I'll talk you through a whole circuit.</p>
     <dl>
       <div><dt>W / S <em>or</em> ↑ ↓</dt><dd>Pitch</dd></div>
       <div><dt>A / D <em>or</em> ← →</dt><dd>Roll</dd></div>
@@ -170,8 +188,8 @@
       <div><dt>G · F · B</dt><dd>Gear · flaps · brakes</dd></div>
       <div><dt>C</dt><dd>Change view</dd></div>
       <div><dt>R · T</dt><dd>Restart on the runway · in the air</dd></div>
-      <div><dt>N</dt><dd>Next aircraft · <em>M</em> opens the hangar</dd></div>
-      <div><dt>J</dt><dd>Where to start — strips, mountains, carrier, city</dd></div>
+      <div><dt>M</dt><dd>Pre-flight — choose aircraft and airfield · <em>N</em> next aircraft</dd></div>
+      <div><dt>J</dt><dd>Same screen, opened on the airfield list</dd></div>
       <div><dt>K</dt><dd>Start or stop the tutorial</dd></div>
       <div><dt>P</dt><dd>Autopilot · <em>[ ]</em> trim · <em>0</em> trim neutral</dd></div>
       <div><dt>L</dt><dd>Time of day — morning to dusk</dd></div>
@@ -179,8 +197,7 @@
     </dl>
     <div class="card-btns">
       <button type="button" data-key="k">Teach me to fly</button>
-      <button type="button" data-key="m">Aircraft</button>
-      <button type="button" data-key="j">Where to start</button>
+      <button type="button" data-key="m">Aircraft &amp; airfield</button>
       <button type="button" data-key="h">Fly</button>
     </div>
   </div>
