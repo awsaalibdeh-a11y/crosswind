@@ -10,6 +10,8 @@ import os
 from flask import Flask, render_template, send_from_directory
 
 app = Flask(__name__)
+import hubguard  # noqa: E402  (the owner's universal switches, kept in Cramly)
+hubguard.install(app, "crosswind")
 
 ASSET_VERSION = str(int(max(
     os.path.getmtime(os.path.join(app.static_folder, name))
