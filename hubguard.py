@@ -2,7 +2,7 @@
 
   import hubguard; hubguard.install(app, "alibi")
 
-When the app is switched off every page and API call except the static files answers 503; when a request carries a banned or
+When the app is switched off every API call except the static files answers 503 and every page shows a plain "switched off" screen; when a request carries a banned or
 timed-out account (X-Hub-Key) or device (X-Hub-Dev) it is refused. Cramly is only asked every 20 seconds, in the background, and
 if it cannot be reached the app carries on as normal (fail open), so a sleeping Cramly never takes this app down."""
 
@@ -71,9 +71,10 @@ def install(app, app_id):
             msg = v.get("message") or "Switched off for a bit. Back soon."
             if p.startswith("/api/") or request.is_json:
                 return jsonify(error=msg, maintenance=True), 503
-            return (f"<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Switched off</title>"
+            # a 200, not a 503, for pages: if the host health-checks "/" a failing page would get the app restarted, fighting the switch
+            return (f"<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=robots content=noindex><title>Switched off</title>"
                     f"<body style='margin:0;display:grid;place-items:center;min-height:100vh;background:#0a0a0b;color:#ececf0;font:16px system-ui;text-align:center;padding:24px'>"
-                    f"<div><div style='font-size:48px'>🛠️</div><h2>{app_id.title()} is switched off</h2><p style='color:#9a9aa3'>{msg}</p></div>", 503)
+                    f"<div><div style='font-size:48px'>🛠️</div><h2>{app_id.title()} is switched off</h2><p style='color:#9a9aa3'>{msg}</p></div>", 200, {"Cache-Control": "no-store"})
         if v.get("banned") or v.get("timeout_until", 0) > time.time():
             if p.startswith("/api/"):
                 return jsonify(error="This account is blocked or on a break.", banned=bool(v.get("banned"))), 403
