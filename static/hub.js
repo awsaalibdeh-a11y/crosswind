@@ -11,16 +11,21 @@
     get: k => { try { return localStorage.getItem("hub." + k) || ""; } catch (e) { return ""; } },
     set: (k, v) => { try { v ? localStorage.setItem("hub." + k, v) : localStorage.removeItem("hub." + k); } catch (e) { /* private mode */ } },
   };
+  const keyOf = () => {                                      // inside Cramly the signed-in account is used as it is
+    const k = store.get("key");
+    if (k || APP !== "cramly") return k;
+    try { return JSON.parse(localStorage.getItem("cramly.key") || "null") || ""; } catch (e) { return ""; }
+  };
   let dev = store.get("dev");
   if (!dev) { dev = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36)).replace(/-/g, "").slice(0, 24); store.set("dev", dev); }
-  window.HUB = { dev: () => dev, key: () => store.get("key"), app: APP };
+  window.HUB = { dev: () => dev, key: keyOf, app: APP };
 
   /* every same-origin request carries who is asking, so the server can enforce a ban too */
   const realFetch = window.fetch.bind(window);
   window.fetch = (input, init = {}) => {
     try {
       const url = new URL(typeof input === "string" ? input : input.url, location.href);
-      if (url.origin === location.origin) { init = { ...init, headers: { ...(init.headers instanceof Headers ? Object.fromEntries(init.headers) : init.headers || {}), "X-Hub-Dev": dev, ...(store.get("key") ? { "X-Hub-Key": store.get("key") } : {}) } }; }
+      if (url.origin === location.origin) { init = { ...init, headers: { ...(init.headers instanceof Headers ? Object.fromEntries(init.headers) : init.headers || {}), "X-Hub-Dev": dev, ...(keyOf() ? { "X-Hub-Key": keyOf() } : {}) } }; }
     } catch (e) { /* leave it alone */ }
     return realFetch(input, init);
   };
@@ -97,7 +102,7 @@
       document.body.append(box);
       box.querySelector("#hubOut").onclick = () => { store.set("key", ""); linked = false; who = ""; box.remove(); box = null; drawChip(); poll(); };
     } else {
-      box.innerHTML = `<h3>Use your Cramly account</h3><p>One account for every app. In Cramly open <b>Me</b>, then <b>Link a device</b>, and type the 6 digits here.</p><input id="hubCode" inputmode="numeric" maxlength="6" placeholder="000000" aria-label="6 digit code"><button id="hubGo">Link</button><div class="err" id="hubErr" role="alert"></div><p style="margin:10px 0 0;font-size:11px">Device id: ${esc(dev)}</p>`;
+      box.innerHTML = `<h3>Use your Cramly account</h3><p>One account for every app. In Cramly open <b>Settings</b>, tap <b>Use Cramly on another device</b>, and type the 6 digits here.</p><input id="hubCode" inputmode="numeric" maxlength="6" placeholder="000000" aria-label="6 digit code"><button id="hubGo">Link</button><div class="err" id="hubErr" role="alert"></div><p style="margin:10px 0 0;font-size:11px">Device id: ${esc(dev)}</p>`;
       document.body.append(box);
       const go = async () => {
         const code = box.querySelector("#hubCode").value.trim(), err = box.querySelector("#hubErr");
@@ -121,7 +126,7 @@
   async function poll() {
     if (busy) return; busy = true;
     try {
-      const since = store.get("since") || "0", key = store.get("key");
+      const since = store.get("since") || "0", key = keyOf();
       const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 25000);
       const r = await realFetch(`${HUB}/api/uni/guard?app=${encodeURIComponent(APP)}&dev=${encodeURIComponent(dev)}&since=${since}`, { headers: key ? { Authorization: "Bearer " + key } : {}, signal: ctl.signal });
       clearTimeout(to);
