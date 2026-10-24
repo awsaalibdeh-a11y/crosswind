@@ -37,9 +37,9 @@ def _refresh(app_id, key, dev):
         if ans is not None:
             _cache[(key, dev)] = (ans, time.time())
         elif (key, dev) in _cache:
-            _cache[(key, dev)] = (_cache[(key, dev)][0], time.time() - 10)           # try again in ~10 seconds, not on every request
+            _cache[(key, dev)] = (_cache[(key, dev)][0], time.time() - 240)          # try again in about a minute, not on every request
         else:
-            _cache[(key, dev)] = ({}, time.time() - 10)
+            _cache[(key, dev)] = ({}, time.time() - 240)
 
 
 def verdict(app_id, key="", dev=""):
@@ -52,7 +52,7 @@ def verdict(app_id, key="", dev=""):
     if hit is None:
         threading.Thread(target=_refresh, args=(app_id, key, dev), daemon=True).start()   # first sight: do not make the visitor wait
         return {}
-    if time.time() - hit[1] > 20:
+    if time.time() - hit[1] > 300:                                                       # every 5 minutes: each check is traffic, and wakes Cramly
         threading.Thread(target=_refresh, args=(app_id, key, dev), daemon=True).start()
     return hit[0]
 
