@@ -40,6 +40,8 @@
   .hub-box h3{margin:0 0 6px;font-size:16px}.hub-box p{margin:0 0 10px;color:#9a9aa3}.hub-box input{width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid #2a2a30;background:#0a0a0b;color:#ececf0;font:600 18px ui-monospace,monospace;letter-spacing:.2em;text-align:center}
   .hub-box button{margin-top:10px;width:100%;padding:10px;border-radius:10px;border:0;background:#5b93ff;color:#08101f;font:700 14px system-ui;cursor:pointer}.hub-box button.alt{background:#1b1b1f;color:#ececf0}
   .hub-box .err{color:#ff6b74;margin-top:8px;min-height:1em}
+  .hub-box input.hub-in{font:15px system-ui,sans-serif;letter-spacing:0;text-align:left;margin-top:8px}.hub-box button:disabled{opacity:.6}
+  .hub-links{margin:10px 0 0!important;font-size:12.5px}.hub-links a{color:#8fb4ff}.hub-small{margin:10px 0 0!important;font-size:11.5px;color:#6c6c75!important}
   .hub-toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:2147483100;max-width:min(92vw,420px);background:#121214;border:1px solid #2a2a30;color:#ececf0;padding:12px 16px;border-radius:14px;font:14px/1.45 system-ui,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.6);animation:hubIn .3s ease}
   .hub-toast b{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#8d8d96;margin-bottom:2px}
   @keyframes hubIn{from{opacity:0;transform:translate(-50%,-10px)}}
@@ -87,38 +89,70 @@
     else toast("From the owner", n.body, 14000);
   }
 
-  /* the little account button: link the same Cramly account here with a pairing code */
+  /* the account button: sign in or make an account with email and password (the same account in every app),
+     ask the owner for a new password, or link with a Cramly pairing code */
   let chip = null, box = null, linked = false, who = "";
+  const api = async (path, opts = {}) => {
+    const key = keyOf(), r = await realFetch(HUB + path, { ...opts, headers: { "Content-Type": "application/json", ...(key ? { Authorization: "Bearer " + key } : {}), ...(opts.headers || {}) } });
+    let j = {}; try { j = await r.json(); } catch (e) { /* empty */ }
+    if (!r.ok) throw new Error(j.error || "That did not work.");
+    return j;
+  };
+  const signedIn = (j, how) => { store.set("key", j.key); store.set("email", j.email || ""); store.set("ticket", ""); linked = true; who = j.email || j.name || ""; if (box) { box.remove(); box = null; } drawChip(); poll(); toast(how, `Signed in as ${who}`, 4000); window.dispatchEvent(new CustomEvent("hub:account", { detail: { email: who } })); };
   function drawChip() {
-    if (!chip) { chip = el("button", "hub-chip", "☁"); chip.title = "Cramly account"; chip.setAttribute("aria-label", "Cramly account"); chip.onclick = togglePanel; document.body.append(chip); }
-    chip.textContent = linked ? (who[0] || "✓").toUpperCase() : "☁";
+    if (!chip) { chip = el("button", "hub-chip", "☁"); chip.title = "Your account"; chip.setAttribute("aria-label", "Your account"); chip.onclick = () => togglePanel(); document.body.append(chip); }
+    chip.textContent = linked ? (who[0] || "✓").toUpperCase() : "👤";
     chip.style.opacity = linked ? ".9" : "";
   }
-  function togglePanel() {
-    if (box) { box.remove(); box = null; return; }
-    box = el("div", "hub-box"); box.setAttribute("role", "dialog");
+  function form(view) {
+    const f = (id, type, ph, extra = "") => `<input class="hub-in" id="${id}" type="${type}" placeholder="${ph}" ${extra}>`;
+    const notice = `<p class="hub-small">The site owner can see the email you sign up with, never your password.</p>`;
+    if (view === "up") return `<h3>Create your account</h3><p>One account for every app by Awsaa.</p>${f("hubE", "email", "Email", 'autocomplete="email"')}${f("hubP", "password", "Password (8+ characters)", 'autocomplete="new-password"')}<button id="hubGo">Create account</button><div class="err" id="hubErr" role="alert"></div><p class="hub-links"><a href="#" data-v="in">I already have an account</a></p>${notice}`;
+    if (view === "forgot") return `<h3>Forgot your password?</h3><p>Your request goes to the owner. Once they approve it you can set a new password right here.</p>${f("hubE", "email", "Your account's email", 'autocomplete="email"')}<button id="hubGo">Ask for a new password</button><div class="err" id="hubErr" role="alert"></div><p class="hub-links"><a href="#" data-v="in">Back to sign in</a></p>`;
+    if (view === "wait") return `<h3>Waiting for the owner</h3><p>Your request <b id="hubCode2"></b> is with the owner. Keep this page open or come back later: when it's approved you can set a new password here.</p><div class="err" id="hubErr" role="alert"></div><button class="alt" id="hubCheck">Check again</button><p class="hub-links"><a href="#" data-v="cancel">Cancel the request</a></p>`;
+    if (view === "newpw") return `<h3>Set a new password</h3><p>The owner approved your request.</p>${f("hubP", "password", "New password (8+ characters)", 'autocomplete="new-password"')}<button id="hubGo">Save and sign in</button><div class="err" id="hubErr" role="alert"></div>`;
+    if (view === "code") return `<h3>Link with a code</h3><p>In Cramly open <b>Settings</b>, tap <b>Use Cramly on another device</b>, and type the 6 digits here.</p><input id="hubCode" inputmode="numeric" maxlength="6" placeholder="000000" aria-label="6 digit code"><button id="hubGo">Link</button><div class="err" id="hubErr" role="alert"></div><p class="hub-links"><a href="#" data-v="in">Sign in with email instead</a></p>`;
+    return `<h3>Sign in</h3><p>One account for every app by Awsaa.</p>${f("hubE", "email", "Email", 'autocomplete="email"')}${f("hubP", "password", "Password", 'autocomplete="current-password"')}<button id="hubGo">Sign in</button><div class="err" id="hubErr" role="alert"></div><p class="hub-links"><a href="#" data-v="up">Create an account</a> · <a href="#" data-v="forgot">Forgot password?</a> · <a href="#" data-v="code">Cramly code</a></p>`;
+  }
+  async function togglePanel(view) {
+    if (box && !view) { box.remove(); box = null; return; }
+    if (!box) { box = el("div", "hub-box"); box.setAttribute("role", "dialog"); document.body.append(box); }
     if (linked) {
-      box.innerHTML = `<h3>Signed in as ${esc(who || "your Cramly account")}</h3><p>This app knows you through your Cramly account, the same one used in every app.</p><button class="alt" id="hubOut">Unlink here</button><p style="margin:10px 0 0;font-size:11px">Device id: ${esc(dev)}</p>`;
-      document.body.append(box);
-      box.querySelector("#hubOut").onclick = () => { store.set("key", ""); linked = false; who = ""; box.remove(); box = null; drawChip(); poll(); };
-    } else {
-      box.innerHTML = `<h3>Use your Cramly account</h3><p>One account for every app. In Cramly open <b>Settings</b>, tap <b>Use Cramly on another device</b>, and type the 6 digits here.</p><input id="hubCode" inputmode="numeric" maxlength="6" placeholder="000000" aria-label="6 digit code"><button id="hubGo">Link</button><div class="err" id="hubErr" role="alert"></div><p style="margin:10px 0 0;font-size:11px">Device id: ${esc(dev)}</p>`;
-      document.body.append(box);
-      const go = async () => {
-        const code = box.querySelector("#hubCode").value.trim(), err = box.querySelector("#hubErr");
-        if (code.length < 6) { err.textContent = "Type all 6 digits."; return; }
-        err.textContent = "Linking…";
-        try {
-          const r = await realFetch(HUB + "/api/uni/link", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
-          const j = await r.json();
-          if (!r.ok) { err.textContent = j.error || "That did not work."; return; }
-          store.set("key", j.key); linked = true; who = j.name || ""; box.remove(); box = null; drawChip(); poll(); toast("Linked", `Signed in as ${j.name || "your Cramly account"}`, 4000);
-        } catch (e) { err.textContent = "Cramly did not answer. It may be waking up, try again in a minute."; }
-      };
-      box.querySelector("#hubGo").onclick = go;
-      box.querySelector("#hubCode").addEventListener("keydown", e => { if (e.key === "Enter") go(); });
-      box.querySelector("#hubCode").focus();
+      box.innerHTML = `<h3>Signed in</h3><p><b>${esc(store.get("email") || who || "your account")}</b><br>The same account works in every app by Awsaa.</p><button class="alt" id="hubOut">Sign out here</button><p style="margin:10px 0 0;font-size:11px">Device id: ${esc(dev)}</p>`;
+      box.querySelector("#hubOut").onclick = () => { store.set("key", ""); store.set("email", ""); linked = false; who = ""; box.remove(); box = null; drawChip(); poll(); window.dispatchEvent(new CustomEvent("hub:account", { detail: { email: "" } })); };
+      if (!store.get("email")) api("/api/uni/acct/me").then(j => { if (j.email) { store.set("email", j.email); const b = box && box.querySelector("p b"); if (b) b.textContent = j.email; } }).catch(() => { });
+      return;
     }
+    if (!view) { const t = store.get("ticket"); view = t ? "wait" : "in"; }
+    box.innerHTML = form(view);
+    const $ = id => box.querySelector("#" + id), err = $("hubErr");
+    box.querySelectorAll("[data-v]").forEach(a => a.onclick = e => { e.preventDefault(); if (a.dataset.v === "cancel") store.set("ticket", ""); togglePanel(a.dataset.v === "cancel" ? "in" : a.dataset.v); });
+    const busyBtn = async (fn) => { const b = $("hubGo"); if (b) b.disabled = true; err.textContent = "…"; try { await fn(); } catch (e) { err.textContent = e.message === "Failed to fetch" ? "The account server didn't answer. It may be waking up: try again in a minute." : e.message; } finally { if (b) b.disabled = false; } };
+    const enter = (id, fn) => { const i = $(id); if (i) i.addEventListener("keydown", e => { if (e.key === "Enter") fn(); }); };
+    if (view === "in" || view === "up") {
+      const go = () => busyBtn(async () => { const j = await api(`/api/uni/acct/${view === "up" ? "signup" : "login"}`, { method: "POST", body: JSON.stringify({ email: $("hubE").value, password: $("hubP").value, app: APP }) }); signedIn(j, view === "up" ? "Account made" : "Welcome back"); });
+      $("hubGo").onclick = go; enter("hubP", go); $("hubE").focus();
+    } else if (view === "forgot") {
+      const go = () => busyBtn(async () => { const j = await api("/api/uni/acct/forgot", { method: "POST", body: JSON.stringify({ email: $("hubE").value, app: APP }) }); store.set("ticket", j.ticket); store.set("tcode", j.code); togglePanel("wait"); });
+      $("hubGo").onclick = go; enter("hubE", go); $("hubE").focus();
+    } else if (view === "wait") {
+      $("hubCode2").textContent = "#" + (store.get("tcode") || "");
+      const check = () => busyBtn(async () => { const j = await api("/api/uni/acct/forgot?ticket=" + encodeURIComponent(store.get("ticket"))); if (j.status === "approved") togglePanel("newpw"); else if (j.status === "pending") err.textContent = "Still waiting for the owner."; else { store.set("ticket", ""); err.textContent = j.status === "denied" ? "The owner said no to this request." : "This request expired. Ask again."; } });
+      $("hubCheck").onclick = check; check();
+    } else if (view === "newpw") {
+      const go = () => busyBtn(async () => { const j = await api("/api/uni/acct/reset", { method: "POST", body: JSON.stringify({ ticket: store.get("ticket"), password: $("hubP").value, app: APP }) }); signedIn(j, "Password changed"); });
+      $("hubGo").onclick = go; enter("hubP", go); $("hubP").focus();
+    } else if (view === "code") {
+      const go = () => busyBtn(async () => { const code = $("hubCode").value.trim(); if (code.length < 6) throw new Error("Type all 6 digits."); const j = await api("/api/uni/link", { method: "POST", body: JSON.stringify({ code }) }); signedIn(j, "Linked"); });
+      $("hubGo").onclick = go; enter("hubCode", go); $("hubCode").focus();
+    }
+  }
+  window.HUB.open = v => togglePanel(v || "in");
+  window.HUB.email = () => linked ? (store.get("email") || who) : "";
+  // a pending password request: tell the person when the owner has answered
+  async function checkTicket() {
+    const t = store.get("ticket"); if (!t || linked) return;
+    try { const j = await api("/api/uni/acct/forgot?ticket=" + encodeURIComponent(t)); if (j.status === "approved" && !box) toast("Good news", "Your password reset was approved. Tap the 👤 button to set a new password.", 15000); } catch (e) { /* later */ }
   }
 
   /* ask Cramly what this visitor should see */
@@ -147,6 +181,7 @@
         if (g.inbox && g.inbox.length) { g.inbox.forEach(m => toast("Message for you", m.body, 20000)); realFetch(HUB + "/api/uni/ack", { method: "POST", headers: { Authorization: "Bearer " + key } }).catch(() => {}); }
       }
       if (g.last != null) store.set("since", String(g.last));
+      checkTicket();
     } catch (e) { /* fail open: Cramly may be asleep */ }
     finally { busy = false; }
   }
