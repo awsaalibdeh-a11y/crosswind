@@ -48,6 +48,10 @@
   @keyframes hubFlip{to{transform:rotate(180deg)}}@keyframes hubShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
   @keyframes hubHue{to{filter:hue-rotate(360deg)}}@keyframes hubSpin{to{transform:rotate(360deg)}}@keyframes hubFall{to{transform:translateY(110vh) rotate(540deg)}}
   @keyframes hubDisco{0%{background:#f0b429}33%{background:#3dd49b}66%{background:#5b93ff}100%{background:#ff6b74}}
+  .hub-credit{position:fixed;right:10px;bottom:calc(8px + env(safe-area-inset-bottom,0px));z-index:2147481000;text-decoration:none;font:600 10.5px/1 system-ui,-apple-system,Segoe UI,sans-serif;letter-spacing:.06em;color:#9a9aa3;background:rgba(14,14,16,.62);border:1px solid rgba(255,255,255,.08);padding:5px 8px;border-radius:999px;opacity:.75;backdrop-filter:blur(6px)}
+  .hub-credit u{text-decoration:none;color:#c9c9d1}.hub-credit:hover,.hub-credit:focus-visible{opacity:1;color:#ececf0}
+  .hub-credit.l{right:auto;left:54px}.hub-credit.t{bottom:auto;top:calc(8px + env(safe-area-inset-top,0px))}
+  @media print{.hub-credit{display:none}}
   .hub-fall{position:fixed;top:-30px;z-index:2147483050;pointer-events:none;animation:hubFall linear forwards}
   @media (prefers-reduced-motion:reduce){.hub-fall{display:none}}`;
   const style = document.createElement("style"); style.textContent = css; document.head.append(style);
@@ -107,18 +111,18 @@
   function form(view) {
     const f = (id, type, ph, extra = "") => `<input class="hub-in" id="${id}" type="${type}" placeholder="${ph}" ${extra}>`;
     const notice = `<p class="hub-small">The site owner can see the email you sign up with, never your password.</p>`;
-    if (view === "up") return `<h3>Create your account</h3><p>One account for every app by Awsaa.</p>${f("hubE", "email", "Email", 'autocomplete="email"')}${f("hubP", "password", "Password (8+ characters)", 'autocomplete="new-password"')}<button id="hubGo">Create account</button><div class="err" id="hubErr" role="alert"></div><p class="hub-links"><a href="#" data-v="in">I already have an account</a></p>${notice}`;
+    if (view === "up") return `<h3>Create your account</h3><p>One account for every app by Legion.</p>${f("hubE", "email", "Email", 'autocomplete="email"')}${f("hubP", "password", "Password (8+ characters)", 'autocomplete="new-password"')}<button id="hubGo">Create account</button><div class="err" id="hubErr" role="alert"></div><p class="hub-links"><a href="#" data-v="in">I already have an account</a></p>${notice}`;
     if (view === "forgot") return `<h3>Forgot your password?</h3><p>Your request goes to the owner. Once they approve it you can set a new password right here.</p>${f("hubE", "email", "Your account's email", 'autocomplete="email"')}<button id="hubGo">Ask for a new password</button><div class="err" id="hubErr" role="alert"></div><p class="hub-links"><a href="#" data-v="in">Back to sign in</a></p>`;
     if (view === "wait") return `<h3>Waiting for the owner</h3><p>Your request <b id="hubCode2"></b> is with the owner. Keep this page open or come back later: when it's approved you can set a new password here.</p><div class="err" id="hubErr" role="alert"></div><button class="alt" id="hubCheck">Check again</button><p class="hub-links"><a href="#" data-v="cancel">Cancel the request</a></p>`;
     if (view === "newpw") return `<h3>Set a new password</h3><p>The owner approved your request.</p>${f("hubP", "password", "New password (8+ characters)", 'autocomplete="new-password"')}<button id="hubGo">Save and sign in</button><div class="err" id="hubErr" role="alert"></div>`;
     if (view === "code") return `<h3>Link with a code</h3><p>In Cramly open <b>Settings</b>, tap <b>Use Cramly on another device</b>, and type the 6 digits here.</p><input id="hubCode" inputmode="numeric" maxlength="6" placeholder="000000" aria-label="6 digit code"><button id="hubGo">Link</button><div class="err" id="hubErr" role="alert"></div><p class="hub-links"><a href="#" data-v="in">Sign in with email instead</a></p>`;
-    return `<h3>Sign in</h3><p>One account for every app by Awsaa.</p>${f("hubE", "email", "Email", 'autocomplete="email"')}${f("hubP", "password", "Password", 'autocomplete="current-password"')}<button id="hubGo">Sign in</button><div class="err" id="hubErr" role="alert"></div><p class="hub-links"><a href="#" data-v="up">Create an account</a> · <a href="#" data-v="forgot">Forgot password?</a> · <a href="#" data-v="code">Cramly code</a></p>`;
+    return `<h3>Sign in</h3><p>One account for every app by Legion.</p>${f("hubE", "email", "Email", 'autocomplete="email"')}${f("hubP", "password", "Password", 'autocomplete="current-password"')}<button id="hubGo">Sign in</button><div class="err" id="hubErr" role="alert"></div><p class="hub-links"><a href="#" data-v="up">Create an account</a> · <a href="#" data-v="forgot">Forgot password?</a> · <a href="#" data-v="code">Cramly code</a></p>`;
   }
   async function togglePanel(view) {
     if (box && !view) { box.remove(); box = null; return; }
     if (!box) { box = el("div", "hub-box"); box.setAttribute("role", "dialog"); document.body.append(box); }
     if (linked) {
-      box.innerHTML = `<h3>Signed in</h3><p><b>${esc(store.get("email") || who || "your account")}</b><br>The same account works in every app by Awsaa.</p><button class="alt" id="hubOut">Sign out here</button><p style="margin:10px 0 0;font-size:11px">Device id: ${esc(dev)}</p>`;
+      box.innerHTML = `<h3>Signed in</h3><p><b>${esc(store.get("email") || who || "your account")}</b><br>The same account works in every app by Legion.</p><button class="alt" id="hubOut">Sign out here</button><p style="margin:10px 0 0;font-size:11px">Device id: ${esc(dev)}</p>`;
       box.querySelector("#hubOut").onclick = () => { store.set("key", ""); store.set("email", ""); linked = false; who = ""; box.remove(); box = null; drawChip(); poll(); window.dispatchEvent(new CustomEvent("hub:account", { detail: { email: "" } })); };
       if (!store.get("email")) api("/api/uni/acct/me").then(j => { if (j.email) { store.set("email", j.email); const b = box && box.querySelector("p b"); if (b) b.textContent = j.email; } }).catch(() => { });
       return;
@@ -185,6 +189,16 @@
     } catch (e) { /* fail open: Cramly may be asleep */ }
     finally { busy = false; }
   }
-  const start = () => { drawChip(); poll(); setInterval(poll, 30000); document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); }); };
+  /* the credit on every app: "Made by Legion". A page can move it with data-credit="bl|br|tl|tr" on this script tag, or hide it with "none". */
+  const credit = () => {
+    if (!document.querySelector('meta[name="author"]')) { const m = document.createElement("meta"); m.name = "author"; m.content = "Legion"; document.head.append(m); }
+    const pos = (me && me.dataset.credit) || "br";
+    if (pos === "none" || document.querySelector(".hub-credit")) return;
+    const c = el("a", "hub-credit" + (pos[0] === "t" ? " t" : "") + (pos[1] === "l" ? " l" : ""), "Made by Legion · <u>Contact me</u>");
+    c.href = "mailto:Awsaa-Legion@proton.me"; c.title = "Awsaa-Legion@proton.me";
+    c.setAttribute("aria-label", "Made by Legion. Contact me: Awsaa-Legion@proton.me");
+    document.body.append(c);
+  };
+  const start = () => { credit(); drawChip(); poll(); setInterval(poll, 30000); document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); }); };
   if (document.body) start(); else addEventListener("DOMContentLoaded", start);
 })();
